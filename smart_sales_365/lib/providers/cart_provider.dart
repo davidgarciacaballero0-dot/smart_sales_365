@@ -1,5 +1,7 @@
 // TODO Implement this library.
 // lib/providers/cart_provider.dart
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:smart_sales_365/models/cart_model.dart';
 import 'package:smart_sales_365/services/cart_service.dart';

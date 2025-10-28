@@ -2,10 +2,12 @@
 // ignore_for_file: avoid_print
 
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
+import 'package:http/http.dart' as http show get;
+import 'package:http/http.dart';
+import 'package:smart_sales_365/models/cart_item_model.dart';
 import 'package:smart_sales_365/models/cart_model.dart';
-import 'package:smart_sales_365/models/cart_item_model.dart'; // Aunque CartModel lo incluye, es bueno tenerlo
-import 'package:smart_sales_365/services/auth_service.dart'; // Para obtener el token
+import 'package:smart_sales_365/services/auth_service.dart';
 
 class CartService {
   final String _baseUrl = 'https://smartsales-backend.onrender.com/api';
@@ -14,14 +16,15 @@ class CartService {
 
   // --- Helper para obtener Headers con Token ---
   Future<Map<String, String>> _getAuthHeaders() async {
+    // Vuelve a verificar que esta línea use 'getAccessToken' con 'A' mayúscula
     final String? token = await _authService
-        .getAccessToken(); // <--- Usar 'getAccessToken' aquí
+        .getAccessToken(); // <--- VERIFICA ESTA LÍNEA
+
     if (token == null) {
       throw Exception('Usuario no autenticado. No se encontró token.');
     }
     return {
       'Content-Type': 'application/json; charset=UTF-8',
-      // Usamos 'Bearer' porque simple-jwt usa JWTAuthentication
       'Authorization': 'Bearer $token',
     };
   }
