@@ -1,9 +1,9 @@
 // lib/services/cart_service.dart
-// ignore_for_file: avoid_print
+// ignore_for_file: avoid_print, unused_import
 
 import 'dart:convert';
 
-import 'package:http/http.dart' as http show get;
+import 'package:http/http.dart' as http show get, post, put, delete;
 import 'package:http/http.dart';
 import 'package:smart_sales_365/models/cart_item_model.dart';
 import 'package:smart_sales_365/models/cart_model.dart';
@@ -11,8 +11,7 @@ import 'package:smart_sales_365/services/auth_service.dart';
 
 class CartService {
   final String _baseUrl = 'https://smartsales-backend.onrender.com/api';
-  final AuthService _authService =
-      AuthService(); // Instancia para acceder al token
+  final dynamic _authService = AuthService(); // Instancia para acceder al token
 
   // --- Helper para obtener Headers con Token ---
   Future<Map<String, String>> _getAuthHeaders() async {
