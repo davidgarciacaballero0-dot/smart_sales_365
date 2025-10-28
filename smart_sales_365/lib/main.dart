@@ -1,15 +1,16 @@
 // lib/main.dart
 // ignore_for_file: deprecated_member_use
 
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_sales_365/providers/auth_provider.dart';
-import 'package:smart_sales_365/providers/product_provider.dart'; // Importa ProductProvider
+import 'package:flutter/material.dart';
 import 'package:smart_sales_365/screens/auth_wrapper.dart';
-import 'package:smart_sales_365/screens/home_screen.dart';
 import 'package:smart_sales_365/screens/login_screen.dart';
 import 'package:smart_sales_365/screens/register_screen.dart';
-import 'package:smart_sales_365/screens/product_detail_screen.dart'; // Importa ProductDetailScreen
+import 'package:smart_sales_365/screens/home_screen.dart';
+import 'package:smart_sales_365/screens/product_detail_screen.dart';
+import 'package:smart_sales_365/providers/auth_provider.dart';
+import 'package:smart_sales_365/providers/product_provider.dart';
+import 'package:smart_sales_365/providers/cart_provider.dart';
 
 void main() {
   runApp(
@@ -20,7 +21,9 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         // Provider para manejar los productos
         ChangeNotifierProvider(create: (_) => ProductProvider()),
-        // Puedes añadir más providers aquí (ej. CartProvider)
+        // Provider para manejar el carrito
+        ChangeNotifierProvider(create: (_) => CartProvider()),
+        // Puedes añadir más providers aquí en el futuro
       ],
       child: const MyApp(),
     ),
@@ -59,6 +62,7 @@ class MyApp extends StatelessWidget {
         RegisterScreen.routeName: (ctx) => const RegisterScreen(),
         HomeScreen.routeName: (ctx) => const HomeScreen(),
         ProductDetailScreen.routeName: (ctx) => const ProductDetailScreen(),
+        // Añadiremos la ruta para CartScreen más adelante
       },
     );
   }

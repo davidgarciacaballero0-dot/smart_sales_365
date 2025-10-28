@@ -1,4 +1,6 @@
 // lib/services/cart_service.dart
+// ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:smart_sales_365/models/cart_model.dart';
@@ -12,7 +14,8 @@ class CartService {
 
   // --- Helper para obtener Headers con Token ---
   Future<Map<String, String>> _getAuthHeaders() async {
-    final String? token = await _authService.getAccessToken();
+    final String? token = await _authService
+        .getAccessToken(); // <--- Usar 'getAccessToken' aquí
     if (token == null) {
       throw Exception('Usuario no autenticado. No se encontró token.');
     }
