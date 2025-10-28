@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:smart_sales_365/screens/home_screen.dart';
 import 'package:smart_sales_365/screens/login_screen.dart';
 import 'package:smart_sales_365/screens/splash_screen.dart';
-import 'package:smart_sales_365/services/auth_provider.dart';
+import 'package:smart_sales_365/providers/auth_provider.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});

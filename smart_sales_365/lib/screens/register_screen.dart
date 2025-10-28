@@ -1,7 +1,7 @@
 // lib/screens/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_sales_365/services/auth_provider.dart';
+import 'package:smart_sales_365/providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   static const String routeName = '/register';
