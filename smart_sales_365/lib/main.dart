@@ -1,69 +1,94 @@
 // lib/main.dart
-// ignore_for_file: deprecated_member_use
-
-import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
-import 'package:smart_sales_365/screens/auth_wrapper.dart';
-import 'package:smart_sales_365/screens/login_screen.dart';
-import 'package:smart_sales_365/screens/register_screen.dart';
-import 'package:smart_sales_365/screens/home_screen.dart';
-import 'package:smart_sales_365/screens/product_detail_screen.dart';
+import 'package:provider/provider.dart';
 import 'package:smart_sales_365/providers/auth_provider.dart';
-import 'package:smart_sales_365/providers/product_provider.dart';
 import 'package:smart_sales_365/providers/cart_provider.dart';
+import 'package:smart_sales_365/providers/product_provider.dart';
+import 'package:smart_sales_365/screens/auth_wrapper.dart';
+// Eliminamos las importaciones de login y register, ya no se usan aquí
+// import 'package:smart_sales_365/screens/login_screen.dart';
+// import 'package:smart_sales_365/screens/register_screen.dart';
 
 void main() {
-  runApp(
-    // MultiProvider permite registrar múltiples providers
-    MultiProvider(
-      providers: [
-        // Provider para manejar la autenticación
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        // Provider para manejar los productos
-        ChangeNotifierProvider(create: (_) => ProductProvider()),
-        // Provider para manejar el carrito
-        ChangeNotifierProvider(create: (_) => CartProvider()),
-        // Puedes añadir más providers aquí en el futuro
-      ],
-      child: const MyApp(),
-    ),
-  );
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  // CORRECCIÓN: Añadido constructor con key
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SmartSales365',
-      debugShowCheckedModeBanner: false, // Oculta la cinta de debug
-      // Configuración del Tema con Material 3
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple, // Color principal
-          brightness: Brightness.light,
-        ),
-        // Estilo para los campos de texto
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
-          filled: true,
-          fillColor: Colors.grey.shade50.withOpacity(0.5),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (ctx) => AuthProvider()),
+        ChangeNotifierProvider(create: (ctx) => ProductProvider()),
+        ChangeNotifierProvider(create: (ctx) => CartProvider()),
+      ],
+      child: Consumer<AuthProvider>(
+        builder: (ctx, auth, _) => MaterialApp(
+          title: 'SmartSales365',
+          theme: ThemeData(
+            primarySwatch: Colors.blue,
+            visualDensity: VisualDensity.adaptivePlatformDensity,
+            scaffoldBackgroundColor: Colors.grey[100],
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              iconTheme: IconThemeData(color: Colors.black),
+              titleTextStyle: TextStyle(
+                color: Colors.black,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent, // Color de fondo del botón
+                foregroundColor: Colors.white, // Color del texto del botón
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 30,
+                ),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide(color: Colors.blueAccent),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+          ),
+          debugShowCheckedModeBanner: false,
+
+          // --- CORRECCIÓN ---
+          // El AuthWrapper es el único punto de entrada
+          // y él decide qué pantalla mostrar (Login, Home, o Admin)
+          home: const AuthWrapper(),
+
+          // ESTO CAUSABA LOS 4 ERRORES. LO ELIMINAMOS.
+          /*
+          routes: {
+            LoginScreen.routeName: (ctx) => const LoginScreen(),
+            RegisterScreen.routeName: (ctx) => const RegisterScreen(),
+          },
+          */
+          // --- FIN DE LA CORRECCIÓN ---
         ),
       ),
-
-      // Widget inicial que decide si mostrar Login o Home
-      home: const AuthWrapper(),
-
-      // Definición de las rutas nombradas para la navegación
-      routes: {
-        LoginScreen.routeName: (ctx) => const LoginScreen(),
-        RegisterScreen.routeName: (ctx) => const RegisterScreen(),
-        HomeScreen.routeName: (ctx) => const HomeScreen(),
-        ProductDetailScreen.routeName: (ctx) => const ProductDetailScreen(),
-        // Añadiremos la ruta para CartScreen más adelante
-      },
     );
   }
 }

@@ -1,136 +1,106 @@
 // lib/providers/auth_provider.dart
-// ignore_for_file: avoid_print
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:smart_sales_365/models/user_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_sales_365/services/auth_service.dart';
-
-// Definimos los posibles estados de autenticación
-enum AuthStatus {
-  uninitialized, // Estado inicial, al abrir la app
-  authenticated, // Logueado exitosamente
-  unauthenticated, // No logueado (o sesión cerrada)
-  authenticating, // Cargando (presionó "Ingresar")
-  registering, // Cargando (presionó "Registrar")
-}
+import 'package:smart_sales_365/models/user_model.dart'; // <-- CORRECCIÓN: Importar el modelo 'User'
 
 class AuthProvider with ChangeNotifier {
-  // Instancia privada de nuestro servicio de API
   final AuthService _authService = AuthService();
+  String? _token;
+  User? _user; // <-- CORRECCIÓN: De 'AuthUser' a 'User'
+  bool _isLoading = true;
 
-  // --- Variables de Estado Privadas ---
-  AuthStatus _authStatus = AuthStatus.uninitialized;
-  AuthUser? _user;
-  String _errorMessage = '';
+  String? get token => _token;
+  User? get user => _user; // <-- CORRECCIÓN: De 'AuthUser' a 'User'
+  bool get isAuthenticated => _token != null;
+  bool get isLoading => _isLoading;
 
-  // --- Getters Públicos ---
-  // La UI leerá estos valores para saber qué mostrar
-  AuthStatus get authStatus => _authStatus;
-  AuthUser? get user => _user;
-  String get errorMessage => _errorMessage;
-
-  // Getters de conveniencia
-  bool get isAuthenticated => _authStatus == AuthStatus.authenticated;
-  bool get isLoading =>
-      _authStatus == AuthStatus.authenticating ||
-      _authStatus == AuthStatus.registering ||
-      _authStatus == AuthStatus.uninitialized;
-
-  // --- Constructor ---
-  // Cuando se crea el AuthProvider (al inicio de la app),
-  // inmediatamente revisa si ya existe una sesión guardada.
   AuthProvider() {
-    _checkLoginStatus();
+    _tryAutoLogin();
   }
 
-  // Verifica la sesión guardada en SharedPreferences
-  Future<void> _checkLoginStatus() async {
-    // Usamos el método que creamos en AuthService
-    final AuthUser? loggedInUser = await _authService.getInitialAuthStatus();
-
-    if (loggedInUser != null) {
-      _user = loggedInUser;
-      _authStatus = AuthStatus.authenticated;
-    } else {
-      _user = null;
-      _authStatus = AuthStatus.unauthenticated;
+  Future<void> _tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('token')) {
+      _isLoading = false;
+      notifyListeners();
+      return;
     }
-    // Notifica a todos los widgets que están "escuchando"
+
+    _token = prefs.getString('token');
+    final userData = prefs.getString('user');
+
+    if (userData != null) {
+      try {
+        _user = User.fromJson(
+          json.decode(userData),
+        ); // <-- CORRECCIÓN: De 'AuthUser' a 'User'
+      } catch (e) {
+        // Si hay un error decodificando, simplemente borramos los datos viejos
+        await prefs.remove('user');
+        await prefs.remove('token');
+        _token = null;
+        _user = null;
+      }
+    }
+
+    if (_token != null) {
+      // Opcional: Podrías validar el token con el backend aquí
+    }
+
+    _isLoading = false;
     notifyListeners();
   }
 
-  // --- Función de Login ---
-  Future<bool> login(String usernameOrEmail, String password) async {
-    _authStatus = AuthStatus.authenticating;
-    _errorMessage = '';
-    notifyListeners();
-
+  Future<void> login(String email, String password) async {
     try {
-      final AuthUser loggedInUser = await _authService.login(
-        usernameOrEmail,
+      final responseData = await _authService.login(email, password);
+      _token = responseData['token'];
+      _user = User.fromJson(
+        responseData['user'],
+      ); // <-- CORRECCIÓN: De 'AuthUser' a 'User'
+
+      final prefs = await SharedPreferences.getInstance();
+      prefs.setString('token', _token!);
+      // Guardamos el usuario como un string JSON
+      prefs.setString('user', json.encode(responseData['user']));
+
+      notifyListeners();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> register(String username, String email, String password) async {
+    try {
+      final responseData = await _authService.register(
+        username,
+        email,
         password,
       );
-      _user = loggedInUser;
-      _authStatus = AuthStatus.authenticated;
+      _token = responseData['token'];
+      _user = User.fromJson(
+        responseData['user'],
+      ); // <-- CORRECCIÓN: De 'AuthUser' a 'User'
+
+      final prefs = await SharedPreferences.getInstance();
+      prefs.setString('token', _token!);
+      // Guardamos el usuario como un string JSON
+      prefs.setString('user', json.encode(responseData['user']));
+
       notifyListeners();
-      return true;
     } catch (e) {
-      _user = null;
-      _authStatus = AuthStatus.unauthenticated;
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      notifyListeners();
-      return false;
+      rethrow;
     }
   }
 
-  // --- Función de Registro ---
-  Future<bool> register({
-    required String username,
-    required String email,
-    required String password,
-    required String password2,
-  }) async {
-    _authStatus = AuthStatus.registering;
-    _errorMessage = '';
-    notifyListeners();
-
-    try {
-      // 1. Intentar registrar el usuario
-      final bool registerSuccess = await _authService.register(
-        username: username,
-        email: email,
-        password: password,
-        password2: password2,
-      );
-
-      if (registerSuccess) {
-        // 2. Si el registro es exitoso, hacer login automáticamente
-        // La pantalla mostrará "Cargando" (authenticating)
-        print('Registro exitoso, intentando login automático...');
-        return await login(
-          username,
-          password,
-        ); // Reutilizamos la función de login
-      } else {
-        // Esto teóricamente no debería pasar si el servicio lanza excepciones
-        _authStatus = AuthStatus.unauthenticated;
-        notifyListeners();
-        return false;
-      }
-    } catch (e) {
-      _user = null;
-      _authStatus = AuthStatus.unauthenticated;
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      notifyListeners();
-      return false;
-    }
-  }
-
-  // --- Función de Logout ---
   Future<void> logout() async {
-    await _authService.logout();
+    _token = null;
     _user = null;
-    _authStatus = AuthStatus.unauthenticated;
+    final prefs = await SharedPreferences.getInstance();
+    prefs.remove('token');
+    prefs.remove('user');
     notifyListeners();
   }
 }

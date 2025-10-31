@@ -1,180 +1,125 @@
 // lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_sales_365/screens/register_screen.dart';
 import 'package:smart_sales_365/providers/auth_provider.dart';
+import 'package:smart_sales_365/screens/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  static const String routeName = '/login';
   const LoginScreen({super.key});
 
+  // --- CORRECCIÓN: Especificar el tipo de retorno público 'State<LoginScreen>' ---
   @override
   State<LoginScreen> createState() => _LoginScreenState();
+  // --- FIN DE LA CORRECCIÓN ---
 }
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage; // Variable local para errores
 
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  void _submit() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null; // Limpiar errores anteriores
+      });
 
-  bool _obscureText = true;
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  // --- Función de Login (Actualizada) ---
-  Future<void> _submitLogin() async {
-    // 1. Validar el formulario
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      return; // Si no es válido, no hacer nada
-    }
-
-    // Usamos context.read() dentro de un callback/función
-    final authProvider = context.read<AuthProvider>();
-
-    // 2. Llamar al método login del provider
-    final bool loginSuccess = await authProvider.login(
-      _usernameController.text,
-      _passwordController.text,
-    );
-
-    // 3. Mostrar error si falló el login
-    // El AuthWrapper se encargará de navegar a HomeScreen si fue exitoso
-    if (!loginSuccess && mounted) {
-      // 'mounted' comprueba si el widget todavía está en pantalla
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            authProvider.errorMessage.isNotEmpty
-                ? authProvider.errorMessage
-                : 'Error al iniciar sesión',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+      try {
+        await Provider.of<AuthProvider>(
+          context,
+          listen: false,
+        ).login(_emailController.text, _passwordController.text);
+        // Si el login es exitoso, el AuthWrapper se encargará de navegar.
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+          // Mostramos el error que viene del AuthService
+          _errorMessage = e.toString().replaceFirst("Exception: ", "");
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // Usamos context.watch para que la UI se reconstruya
-    // cuando cambie el estado de 'isLoading'
-    final bool isLoading = context.watch<AuthProvider>().isLoading;
-
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 100),
-                Text(
-                  'SmartSales365',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Bienvenido',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 40),
-
-                // Campo de Usuario/Email
-                TextFormField(
-                  controller: _usernameController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuario o Email',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  enabled: !isLoading,
-                  // Validación
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Por favor, ingresa tu usuario o email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Campo de Contraseña
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscureText,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureText ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureText = !_obscureText;
-                        });
-                      },
+      body: Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Bienvenido a\nSmartSales365',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueAccent,
                     ),
                   ),
-                  enabled: !isLoading,
-                  // Validación
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, ingresa tu contraseña';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 32),
+                  const SizedBox(height: 30),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Por favor ingrese su email' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Contraseña',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    obscureText: true,
+                    validator: (value) => value!.isEmpty
+                        ? 'Por favor ingrese su contraseña'
+                        : null,
+                  ),
+                  const SizedBox(height: 20),
 
-                // Botón de Login
-                isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        // Llamamos a nuestra función actualizada
-                        onPressed: _submitLogin,
-                        child: const Text(
-                          'Ingresar',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                  // Mostrar error del backend
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red, fontSize: 14),
                       ),
+                    ),
 
-                const SizedBox(height: 16),
-
-                // Botón de Registro
-                TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          Navigator.of(
-                            context,
-                          ).pushNamed(RegisterScreen.routeName);
-                        },
-                  child: const Text('¿No tienes cuenta? Regístrate'),
-                ),
-              ],
+                  if (_isLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else
+                    ElevatedButton(
+                      onPressed: _submit,
+                      child: const Text('Ingresar'),
+                    ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => const RegisterScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('No tienes cuenta? Regístrate'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
