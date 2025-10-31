@@ -10,7 +10,7 @@ import 'package:smart_sales_365/models/user_model.dart'; // Nuestro modelo
 class AuthService {
   // --- URL Base de tu API ---
   // Esta debe ser la URL de tu backend desplegado en Render
-  final String _baseUrl = 'https://smartsales-backend.onrender.com/api';
+  final String _baseUrl = 'https://smartsales-backend.onren1der.com/api';
   // '[https://smartsales-backend.onrender.com/api](https://smartsales-backend.onrender.com/api)'; // <-- Verifica esta URL
   // --- Claves para SharedPreferences ---
   final String _accessTokenKey = 'access_token';

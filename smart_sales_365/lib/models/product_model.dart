@@ -1,5 +1,6 @@
 // lib/models/product_model.dart
 import 'package:flutter/foundation.dart';
+import 'package:smart_sales_365/models/brand_model.dart'; // Asegúrate de que este archivo existe
 
 @immutable
 class Product {
@@ -10,8 +11,12 @@ class Product {
   final int stock;
   final int categoryId; // El ID de la categoría
   final String categoryName; // El nombre de la categoría (del serializer)
-  final int brandId; // El ID de la marca
-  final String brandName; // El nombre de la marca (del serializer)
+
+  // --- CORRECCIÓN ---
+  // 'brand' ahora es un objeto 'Brand' completo (o null)
+  final Brand? brand;
+  // --------------------
+
   final String? image; // URL de la imagen (de Cloudinary, puede ser null)
 
   const Product({
@@ -22,12 +27,21 @@ class Product {
     required this.stock,
     required this.categoryId,
     required this.categoryName,
-    required this.brandId,
-    required this.brandName,
+    this.brand, // <-- Campo actualizado
     this.image,
   });
 
+  // Un 'getter' para acceder fácilmente al nombre de la marca
+  // Esto asegura que el resto de la app (como ProductDetailScreen)
+  // pueda seguir usando 'product.brandName' sin romperse.
+  String get brandName => brand?.name ?? 'Sin Marca';
+
   factory Product.fromJson(Map<String, dynamic> json) {
+    // --- CORRECCIÓN ---
+    // Decodificamos el objeto 'brand' anidado si no es null
+    final brandJson = json['brand'] as Map<String, dynamic>?;
+    // --------------------
+
     return Product(
       id: json['id'] as int,
       name: json['name'] as String,
@@ -35,13 +49,15 @@ class Product {
       // Convertimos el precio (String en JSON) a double
       price: double.tryParse(json['price']?.toString() ?? '0.0') ?? 0.0,
       stock: json['stock'] as int,
-      // El serializer devuelve 'category' (ID) y 'category_name' (nombre)
+      // El serializer devuelve 'category' (ID) y 'category_name'
       categoryId: json['category'] as int,
       categoryName: json['category_name'] as String? ?? 'Sin Categoría',
-      // El serializer devuelve 'brand' (ID) y 'brand_name' (nombre)
-      brandId: json['brand'] as int,
-      brandName: json['brand_name'] as String? ?? 'Sin Marca',
-      // La imagen puede ser null
+
+      // --- CORRECCIÓN ---
+      // Creamos un objeto Brand a partir del JSON anidado
+      brand: brandJson != null ? Brand.fromJson(brandJson) : null,
+
+      // --------------------
       image: json['image'] as String?,
     );
   }
@@ -55,8 +71,7 @@ class Product {
       'stock': stock,
       'category': categoryId,
       'category_name': categoryName,
-      'brand': brandId,
-      'brand_name': brandName,
+      'brand': brand?.toJson(), // <-- Campo actualizado
       'image': image,
     };
   }
