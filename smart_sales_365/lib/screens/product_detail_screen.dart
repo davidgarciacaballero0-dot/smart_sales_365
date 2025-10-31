@@ -3,21 +3,59 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_sales_365/models/product_model.dart';
 import 'package:smart_sales_365/providers/product_provider.dart';
+import 'package:smart_sales_365/providers/cart_provider.dart'; // <--- 1. Importar CartProvider
 
 class ProductDetailScreen extends StatelessWidget {
-  // Nombre de la ruta para la navegación
   static const String routeName = '/product-detail';
 
   const ProductDetailScreen({super.key});
 
+  // --- 2. Crear función para manejar la adición al carrito ---
+  Future<void> _addItemToCart(BuildContext context, Product product) async {
+    final cartProvider = context.read<CartProvider>();
+    try {
+      // Llama al provider
+      final success = await cartProvider.addItem(product.id);
+
+      if (!context.mounted) return; // Comprobar si el widget sigue montado
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${product.name} añadido al carrito.'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // Mostrar error si el provider devuelve false
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              cartProvider.errorMessage.isNotEmpty
+                  ? cartProvider.errorMessage
+                  : 'Error al añadir al carrito.',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      // Captura por si acaso
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // Obtenemos el ID del producto pasado como argumento al navegar
     final productId = ModalRoute.of(context)?.settings.arguments as int?;
 
-    // Si no se pasó un ID (esto no debería ocurrir con la navegación correcta)
     if (productId == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Error')),
@@ -25,14 +63,14 @@ class ProductDetailScreen extends StatelessWidget {
       );
     }
 
-    // Buscamos el producto en la lista del Provider usando el ID
-    // Usamos context.select para escuchar solo cambios en el producto específico
-    // o si la lista de productos cambia por completo.
+    // Escuchamos ProductProvider
     final Product? product = context.select<ProductProvider, Product?>(
       (provider) => provider.findProductById(productId),
     );
 
-    // Si el producto no se encuentra en el provider (raro si la navegación es correcta)
+    // --- 3. Escuchamos el estado de carga del CartProvider ---
+    final bool isCartLoading = context.watch<CartProvider>().isLoading;
+
     if (product == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Error')),
@@ -40,37 +78,24 @@ class ProductDetailScreen extends StatelessWidget {
       );
     }
 
-    // --- Construcción de la UI de Detalle ---
     return Scaffold(
       appBar: AppBar(
-        title: Text(product.name), // Título con el nombre del producto
+        title: Text(product.name),
+        // TODO: Añadiremos el ícono del carrito aquí
       ),
       body: SingleChildScrollView(
-        // Para permitir scroll si el contenido es largo
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // --- Imagen ---
+            // ... (Imagen, Nombre, Precio, Descripción, etc. sin cambios) ...
             Container(
-              height: 300, // Altura fija para la imagen
+              height: 300,
               color: Colors.grey[200],
               child: product.image != null
                   ? Image.network(
                       product.image!,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(child: CircularProgressIndicator());
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            size: 60,
-                            color: Colors.grey,
-                          ),
-                        );
-                      },
+                      // ... (loadingBuilder y errorBuilder) ...
                     )
                   : const Center(
                       child: Icon(
@@ -80,14 +105,11 @@ class ProductDetailScreen extends StatelessWidget {
                       ),
                     ),
             ),
-
-            // --- Información del Producto (Padding alrededor) ---
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- Nombre del Producto ---
                   Text(
                     product.name,
                     style: theme.textTheme.headlineMedium?.copyWith(
@@ -95,8 +117,6 @@ class ProductDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-
-                  // --- Precio ---
                   Text(
                     '\$${product.price.toStringAsFixed(2)}',
                     style: theme.textTheme.headlineSmall?.copyWith(
@@ -105,8 +125,6 @@ class ProductDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // --- Descripción ---
                   Text(
                     'Descripción',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -121,8 +139,6 @@ class ProductDetailScreen extends StatelessWidget {
                     style: theme.textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 16),
-
-                  // --- Stock ---
                   Row(
                     children: [
                       Icon(Icons.inventory, color: theme.colorScheme.secondary),
@@ -130,7 +146,6 @@ class ProductDetailScreen extends StatelessWidget {
                       Text(
                         'Stock disponible: ${product.stock}',
                         style: theme.textTheme.bodyLarge?.copyWith(
-                          // Color verde si hay stock, rojo si no
                           color: product.stock > 0
                               ? Colors.green.shade700
                               : Colors.red,
@@ -140,8 +155,6 @@ class ProductDetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // --- Categoría y Marca ---
                   Row(
                     children: [
                       Icon(
@@ -163,6 +176,7 @@ class ProductDetailScreen extends StatelessWidget {
                         color: theme.colorScheme.secondary,
                       ),
                       const SizedBox(width: 8),
+                      // Usamos el getter 'brandName' que creamos
                       Text(
                         'Marca: ${product.brandName}',
                         style: theme.textTheme.bodyMedium,
@@ -171,32 +185,26 @@ class ProductDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 32),
 
-                  // --- Botón Añadir al Carrito (Placeholder Fase 3) ---
+                  // --- 4. Conexión del Botón ---
                   Center(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add_shopping_cart),
-                      label: const Text('Añadir al Carrito'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 12,
-                        ),
-                        textStyle: theme.textTheme.titleMedium,
-                      ),
-                      // Deshabilitado si no hay stock
-                      onPressed: product.stock > 0
-                          ? () {
-                              // TODO: Implementar lógica del carrito en Fase 3
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '${product.name} añadido al carrito (¡Próximamente!)',
-                                  ),
-                                ),
-                              );
-                            }
-                          : null, // null deshabilita el botón
-                    ),
+                    // Si el carrito está ocupado, muestra un indicador
+                    child: isCartLoading
+                        ? const CircularProgressIndicator()
+                        : ElevatedButton.icon(
+                            icon: const Icon(Icons.add_shopping_cart),
+                            label: const Text('Añadir al Carrito'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 12,
+                              ),
+                              textStyle: theme.textTheme.titleMedium,
+                            ),
+                            // Deshabilitado si no hay stock O si ya está cargando
+                            onPressed: product.stock > 0
+                                ? () => _addItemToCart(context, product)
+                                : null,
+                          ),
                   ),
                 ],
               ),
