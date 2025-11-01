@@ -1,18 +1,21 @@
 // lib/services/product_service.dart
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_sales_365/models/product_model.dart';
 import 'package:smart_sales_365/models/category_model.dart';
 import 'package:smart_sales_365/models/brand_model.dart';
-import 'package:smart_sales_365/models/review_model.dart'; // <-- AÑADIDO
+// Importamos el nuevo modelo de reseñas
+import 'package:smart_sales_365/models/review_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 class ProductService {
   final String baseUrl =
       'http://10.0.2.2:8000/api/products'; // Emulador Android
 
   Future<List<Product>> getProducts({Map<String, String>? params}) async {
-    var uri = Uri.parse(baseUrl + '/');
+    // --- CORRECCIÓN LINTER ---
+    var uri = Uri.parse('$baseUrl/'); // Usar interpolación
+    // --- FIN CORRECIÓN ---
 
     if (params != null && params.isNotEmpty) {
       final activeParams = Map.fromEntries(
@@ -20,7 +23,6 @@ class ProductService {
       );
       uri = uri.replace(queryParameters: activeParams);
     }
-
     final response = await http.get(uri);
 
     if (response.statusCode == 200) {
@@ -32,7 +34,11 @@ class ProductService {
   }
 
   Future<Product> getProductById(int id) async {
-    final response = await http.get(Uri.parse('$baseUrl/$id/'));
+    // --- CORRECCIÓN LINTER ---
+    final response = await http.get(
+      Uri.parse('$baseUrl/$id/'),
+    ); // Usar interpolación
+    // --- FIN CORRECIÓN ---
     if (response.statusCode == 200) {
       return Product.fromJson(json.decode(utf8.decode(response.bodyBytes)));
     } else {
@@ -41,7 +47,11 @@ class ProductService {
   }
 
   Future<List<Category>> getCategories() async {
-    final response = await http.get(Uri.parse('$baseUrl/categories/'));
+    // --- CORRECCIÓN LINTER ---
+    final response = await http.get(
+      Uri.parse('$baseUrl/categories/'),
+    ); // Usar interpolación
+    // --- FIN CORRECIÓN ---
     if (response.statusCode == 200) {
       final data = json.decode(utf8.decode(response.bodyBytes)) as List;
       return data.map((item) => Category.fromJson(item)).toList();
@@ -51,7 +61,11 @@ class ProductService {
   }
 
   Future<List<Brand>> getBrands() async {
-    final response = await http.get(Uri.parse('$baseUrl/brands/'));
+    // --- CORRECCIÓN LINTER ---
+    final response = await http.get(
+      Uri.parse('$baseUrl/brands/'),
+    ); // Usar interpolación
+    // --- FIN CORRECIÓN ---
     if (response.statusCode == 200) {
       final data = json.decode(utf8.decode(response.bodyBytes)) as List;
       return data.map((item) => Brand.fromJson(item)).toList();
@@ -60,8 +74,9 @@ class ProductService {
     }
   }
 
-  // --- NUEVAS FUNCIONES DE RESEÑAS AÑADIDAS ---
+  // --- FUNCIONES DE RESEÑAS AÑADIDAS (sincronizadas con product_detail_screen) ---
 
+  /// Obtiene la lista de reseñas para un producto
   Future<List<Review>> getReviews(int productId) async {
     final response = await http.get(Uri.parse('$baseUrl/$productId/reviews/'));
 
@@ -73,17 +88,20 @@ class ProductService {
     }
   }
 
+  /// Publica una nueva reseña
   Future<Review> postReview({
     required int productId,
     required double rating,
     required String comment,
   }) async {
+    // 1. Obtener el token de autenticación
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     if (token == null) {
       throw Exception('No estás autenticado. Inicia sesión para opinar.');
     }
 
+    // 2. Enviar la solicitud POST
     final response = await http.post(
       Uri.parse('$baseUrl/$productId/reviews/'),
       headers: {
@@ -93,9 +111,12 @@ class ProductService {
       body: json.encode({'rating': rating, 'comment': comment}),
     );
 
+    // 3. Manejar la respuesta
     if (response.statusCode == 201) {
+      // Creado exitosamente
       return Review.fromJson(json.decode(utf8.decode(response.bodyBytes)));
     } else if (response.statusCode == 400) {
+      // Error de validación (ej. ya opinó)
       final errorData = json.decode(utf8.decode(response.bodyBytes));
       throw Exception(errorData['detail'] ?? 'Error al enviar la reseña');
     } else if (response.statusCode == 401) {
@@ -104,6 +125,4 @@ class ProductService {
       throw Exception('Error al enviar la reseña (${response.statusCode})');
     }
   }
-
-  // --- FIN DE NUEVAS FUNCIONES ---
 }

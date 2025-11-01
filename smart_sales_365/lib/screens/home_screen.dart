@@ -5,8 +5,6 @@ import 'package:smart_sales_365/models/category_model.dart';
 import 'package:smart_sales_365/providers/auth_provider.dart';
 import 'package:smart_sales_365/providers/product_provider.dart';
 import 'package:smart_sales_365/widgets/product_grid_item.dart';
-// Asumo que crearás este archivo 'cart_badge.dart' en el siguiente paso
-// Si causa error, coméntalo temporalmente.
 import 'package:smart_sales_365/widgets/cart_badge.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,6 +18,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _minPriceController = TextEditingController();
   final TextEditingController _maxPriceController = TextEditingController();
   Category? _selectedCategory;
+  final TextEditingController _searchController =
+      TextEditingController(); // Para la búsqueda
 
   @override
   void initState() {
@@ -28,13 +28,22 @@ class _HomeScreenState extends State<HomeScreen> {
       final provider = Provider.of<ProductProvider>(context, listen: false);
       _minPriceController.text = provider.filters['price__gte'] ?? '';
       _maxPriceController.text = provider.filters['price__lte'] ?? '';
+      _searchController.text = provider.filters['search'] ?? '';
       final categoryId = provider.filters['category'];
+
+      // --- CORRECCIÓN DEL ERROR 'return_of_invalid_type_from_closure' ---
       if (categoryId != null && provider.categories.isNotEmpty) {
-        _selectedCategory = provider.categories.firstWhere(
-          (c) => c.id.toString() == categoryId,
-          orElse: () => null,
-        );
+        try {
+          // firstWhere lanza un StateError si no encuentra nada
+          _selectedCategory = provider.categories.firstWhere(
+            (c) => c.id.toString() == categoryId,
+          );
+        } catch (e) {
+          // Si no lo encuentra (error), asignamos null
+          _selectedCategory = null;
+        }
       }
+      // --- FIN DE LA CORRECCIÓN ---
     });
   }
 
@@ -42,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _minPriceController.dispose();
     _maxPriceController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -53,32 +63,32 @@ class _HomeScreenState extends State<HomeScreen> {
         return Wrap(
           children: [
             ListTile(
-              leading: Icon(Icons.arrow_upward),
-              title: Text('Precio: Más bajo a más alto'),
+              leading: const Icon(Icons.arrow_upward),
+              title: const Text('Precio: Más bajo a más alto'),
               onTap: () {
                 provider.setFilter('ordering', 'price');
                 Navigator.of(ctx).pop();
               },
             ),
             ListTile(
-              leading: Icon(Icons.arrow_downward),
-              title: Text('Precio: Más alto a más bajo'),
+              leading: const Icon(Icons.arrow_downward),
+              title: const Text('Precio: Más alto a más bajo'),
               onTap: () {
                 provider.setFilter('ordering', '-price');
                 Navigator.of(ctx).pop();
               },
             ),
             ListTile(
-              leading: Icon(Icons.sort_by_alpha),
-              title: Text('Nombre: A-Z'),
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('Nombre: A-Z'),
               onTap: () {
                 provider.setFilter('ordering', 'name');
                 Navigator.of(ctx).pop();
               },
             ),
             ListTile(
-              leading: Icon(Icons.sort_by_alpha),
-              title: Text('Nombre: Z-A'),
+              leading: const Icon(Icons.sort_by_alpha),
+              title: const Text('Nombre: Z-A'),
               onTap: () {
                 provider.setFilter('ordering', '-name');
                 Navigator.of(ctx).pop();
@@ -111,16 +121,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Filtrar Productos',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: 16),
+                    Text('Filtrar Productos',
+                        style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 16),
                     DropdownButtonFormField<Category>(
-                      // --- CORRECCIÓN LINTER: 'value' por 'initialValue' ---
-                      // (Nota: Si esto no funciona, lo revertiremos. Es por el linter.)
                       initialValue: _selectedCategory,
-                      hint: Text('Seleccionar categoría'),
+                      hint: const Text('Seleccionar categoría'),
                       items: provider.categories.map((Category category) {
                         return DropdownMenuItem<Category>(
                           value: category,
@@ -133,36 +139,34 @@ class _HomeScreenState extends State<HomeScreen> {
                         });
                       },
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _minPriceController,
-                            decoration: InputDecoration(
-                              labelText: 'Precio Mín.',
-                            ),
+                            decoration:
+                                const InputDecoration(labelText: 'Precio Mín.'),
                             keyboardType: TextInputType.number,
                           ),
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: TextField(
                             controller: _maxPriceController,
-                            decoration: InputDecoration(
-                              labelText: 'Precio Máx.',
-                            ),
+                            decoration:
+                                const InputDecoration(labelText: 'Precio Máx.'),
                             keyboardType: TextInputType.number,
                           ),
                         ),
                       ],
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         TextButton(
-                          child: Text('Limpiar Filtros'),
+                          child: const Text('Limpiar Filtros'),
                           onPressed: () {
                             _minPriceController.clear();
                             _maxPriceController.clear();
@@ -174,26 +178,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                         ElevatedButton(
-                          child: Text('Aplicar'),
+                          child: const Text('Aplicar'),
                           onPressed: () {
                             provider.setFilter(
-                              'price__gte',
-                              _minPriceController.text,
-                            );
+                                'price__gte', _minPriceController.text);
                             provider.setFilter(
-                              'price__lte',
-                              _maxPriceController.text,
-                            );
-                            provider.setFilter(
-                              'category',
-                              _selectedCategory?.id.toString() ?? '',
-                            );
+                                'price__lte', _maxPriceController.text);
+                            provider.setFilter('category',
+                                _selectedCategory?.id.toString() ?? '');
                             Navigator.of(ctx).pop();
                           },
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -210,37 +208,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Catálogo'),
+        title: const Text('Catálogo'),
         actions: [
           IconButton(
-            icon: Icon(Icons.sort),
+            icon: const Icon(Icons.sort),
             onPressed: () => _showSortOptions(context),
           ),
           IconButton(
-            icon: Icon(Icons.filter_list),
+            icon: const Icon(Icons.filter_list),
             onPressed: () => _showFilterOptions(context),
           ),
-
-          const CartBadge(), // Esto dará error hasta que creemos cart_badge.dart
-
+          const CartBadge(),
           IconButton(
-            icon: Icon(Icons.logout),
+            icon: const Icon(Icons.logout),
             onPressed: () {
               Provider.of<AuthProvider>(context, listen: false).logout();
             },
-          ),
+          )
         ],
       ),
       body: provider.isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
                       labelText: 'Buscar producto...',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
                       ),
@@ -254,15 +251,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: GridView.builder(
                     padding: const EdgeInsets.all(10.0),
                     itemCount: provider.products.length,
-                    itemBuilder: (ctx, i) =>
-                        ProductGridItem(product: provider.products[i]),
+                    itemBuilder: (ctx, i) => ProductGridItem(
+                      product: provider.products[i],
+                    ),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 2 / 3,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
+                      crossAxisCount: 2,
+                      childAspectRatio: 2 / 3,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
                   ),
                 ),
               ],

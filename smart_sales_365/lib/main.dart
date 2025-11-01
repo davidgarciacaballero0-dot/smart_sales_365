@@ -5,16 +5,14 @@ import 'package:smart_sales_365/providers/auth_provider.dart';
 import 'package:smart_sales_365/providers/cart_provider.dart';
 import 'package:smart_sales_365/providers/product_provider.dart';
 import 'package:smart_sales_365/screens/auth_wrapper.dart';
-// Eliminamos las importaciones de login y register, ya no se usan aquí
-// import 'package:smart_sales_365/screens/login_screen.dart';
-// import 'package:smart_sales_365/screens/register_screen.dart';
+import 'package:smart_sales_365/screens/login_screen.dart';
+import 'package:smart_sales_365/screens/register_screen.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp()); // <-- AÑADIDO CONST
 }
 
 class MyApp extends StatelessWidget {
-  // CORRECCIÓN: Añadido constructor con key
   const MyApp({super.key});
 
   @override
@@ -44,15 +42,13 @@ class MyApp extends StatelessWidget {
             ),
             elevatedButtonTheme: ElevatedButtonThemeData(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent, // Color de fondo del botón
-                foregroundColor: Colors.white, // Color del texto del botón
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 30,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 30),
               ),
             ),
             inputDecorationTheme: InputDecorationTheme(
@@ -66,27 +62,20 @@ class MyApp extends StatelessWidget {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
-                borderSide: BorderSide(color: Colors.blueAccent),
+                borderSide: const BorderSide(color: Colors.blueAccent),
               ),
               filled: true,
               fillColor: Colors.white,
             ),
           ),
           debugShowCheckedModeBanner: false,
-
-          // --- CORRECCIÓN ---
-          // El AuthWrapper es el único punto de entrada
-          // y él decide qué pantalla mostrar (Login, Home, o Admin)
           home: const AuthWrapper(),
-
-          // ESTO CAUSABA LOS 4 ERRORES. LO ELIMINAMOS.
-          /*
           routes: {
-            LoginScreen.routeName: (ctx) => const LoginScreen(),
-            RegisterScreen.routeName: (ctx) => const RegisterScreen(),
+            // No se usan activamente por el AuthWrapper, pero es bueno tenerlos
+            '/login': (ctx) =>
+                const LoginScreen(), // <-- AÑADIDO CONST (aunque LoginScreen no es const)
+            '/register': (ctx) => const RegisterScreen(), // <-- AÑADIDO CONST
           },
-          */
-          // --- FIN DE LA CORRECCIÓN ---
         ),
       ),
     );
