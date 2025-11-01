@@ -9,7 +9,7 @@ import 'package:smart_sales_365/screens/login_screen.dart';
 import 'package:smart_sales_365/screens/register_screen.dart';
 
 void main() {
-  runApp(const MyApp()); // <-- AÑADIDO CONST
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -20,7 +20,10 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (ctx) => AuthProvider()),
+        // --- CORRECCIÓN DEL ERROR ---
+        // Cambiado de 'ChangeFakerProvider' (o similar) al nombre correcto
         ChangeNotifierProvider(create: (ctx) => ProductProvider()),
+        // --- FIN DE LA CORRECCIÓN ---
         ChangeNotifierProvider(create: (ctx) => CartProvider()),
       ],
       child: Consumer<AuthProvider>(
@@ -71,10 +74,9 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           home: const AuthWrapper(),
           routes: {
-            // No se usan activamente por el AuthWrapper, pero es bueno tenerlos
-            '/login': (ctx) =>
-                const LoginScreen(), // <-- AÑADIDO CONST (aunque LoginScreen no es const)
-            '/register': (ctx) => const RegisterScreen(), // <-- AÑADIDO CONST
+            // Rutas nombradas (aunque AuthWrapper maneja el flujo principal)
+            '/login': (ctx) => const LoginScreen(),
+            '/register': (ctx) => const RegisterScreen(),
           },
         ),
       ),
