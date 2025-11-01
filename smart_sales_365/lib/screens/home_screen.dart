@@ -1,13 +1,15 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_sales_365/models/category_model.dart';
 import 'package:smart_sales_365/providers/auth_provider.dart';
 import 'package:smart_sales_365/providers/product_provider.dart';
-import 'package:smart_sales_365/providers/cart_provider.dart'; // <--- 1. Importar CartProvider
 import 'package:smart_sales_365/widgets/product_grid_item.dart';
+// Asumo que crearás este archivo 'cart_badge.dart' en el siguiente paso
+// Si causa error, coméntalo temporalmente.
+import 'package:smart_sales_365/widgets/cart_badge.dart';
 
 class HomeScreen extends StatefulWidget {
-  static const String routeName = '/home';
   const HomeScreen({super.key});
 
   @override
@@ -15,118 +17,245 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _isInit = true;
-  bool _isLoadingProducts = false;
+  final TextEditingController _minPriceController = TextEditingController();
+  final TextEditingController _maxPriceController = TextEditingController();
+  Category? _selectedCategory;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_isInit) {
-      setState(() {
-        _isLoadingProducts = true;
-      });
-
-      // Cargamos tanto productos como el carrito
-      Future.wait([
-        context.read<ProductProvider>().loadProducts(),
-        context.read<CartProvider>().loadCart(), // <--- 2. Llamar a loadCart()
-      ]).then((_) {
-        if (mounted) {
-          setState(() {
-            _isLoadingProducts = false;
-          });
-        }
-      });
-      _isInit = false;
-    }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<ProductProvider>(context, listen: false);
+      _minPriceController.text = provider.filters['price__gte'] ?? '';
+      _maxPriceController.text = provider.filters['price__lte'] ?? '';
+      final categoryId = provider.filters['category'];
+      if (categoryId != null && provider.categories.isNotEmpty) {
+        _selectedCategory = provider.categories.firstWhere(
+          (c) => c.id.toString() == categoryId,
+          orElse: () => null,
+        );
+      }
+    });
   }
 
-  Future<void> _refreshProducts() async {
-    setState(() {
-      _isLoadingProducts = true;
-    });
-    // Al refrescar, también recargamos ambos
-    await Future.wait([
-      context.read<ProductProvider>().loadProducts(),
-      context
-          .read<CartProvider>()
-          .loadCart(), // <--- 3. Añadir loadCart() al refresh
-    ]);
-    if (mounted) {
-      setState(() {
-        _isLoadingProducts = false;
-      });
-    }
+  @override
+  void dispose() {
+    _minPriceController.dispose();
+    _maxPriceController.dispose();
+    super.dispose();
+  }
+
+  void _showSortOptions(BuildContext context) {
+    final provider = Provider.of<ProductProvider>(context, listen: false);
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Wrap(
+          children: [
+            ListTile(
+              leading: Icon(Icons.arrow_upward),
+              title: Text('Precio: Más bajo a más alto'),
+              onTap: () {
+                provider.setFilter('ordering', 'price');
+                Navigator.of(ctx).pop();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.arrow_downward),
+              title: Text('Precio: Más alto a más bajo'),
+              onTap: () {
+                provider.setFilter('ordering', '-price');
+                Navigator.of(ctx).pop();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.sort_by_alpha),
+              title: Text('Nombre: A-Z'),
+              onTap: () {
+                provider.setFilter('ordering', 'name');
+                Navigator.of(ctx).pop();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.sort_by_alpha),
+              title: Text('Nombre: Z-A'),
+              onTap: () {
+                provider.setFilter('ordering', '-name');
+                Navigator.of(ctx).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showFilterOptions(BuildContext context) {
+    final provider = Provider.of<ProductProvider>(context, listen: false);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Filtrar Productos',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    SizedBox(height: 16),
+                    DropdownButtonFormField<Category>(
+                      // --- CORRECCIÓN LINTER: 'value' por 'initialValue' ---
+                      // (Nota: Si esto no funciona, lo revertiremos. Es por el linter.)
+                      initialValue: _selectedCategory,
+                      hint: Text('Seleccionar categoría'),
+                      items: provider.categories.map((Category category) {
+                        return DropdownMenuItem<Category>(
+                          value: category,
+                          child: Text(category.name),
+                        );
+                      }).toList(),
+                      onChanged: (Category? newValue) {
+                        setModalState(() {
+                          _selectedCategory = newValue;
+                        });
+                      },
+                    ),
+                    SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _minPriceController,
+                            decoration: InputDecoration(
+                              labelText: 'Precio Mín.',
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _maxPriceController,
+                            decoration: InputDecoration(
+                              labelText: 'Precio Máx.',
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        TextButton(
+                          child: Text('Limpiar Filtros'),
+                          onPressed: () {
+                            _minPriceController.clear();
+                            _maxPriceController.clear();
+                            setModalState(() {
+                              _selectedCategory = null;
+                            });
+                            provider.clearFilters();
+                            Navigator.of(ctx).pop();
+                          },
+                        ),
+                        ElevatedButton(
+                          child: Text('Aplicar'),
+                          onPressed: () {
+                            provider.setFilter(
+                              'price__gte',
+                              _minPriceController.text,
+                            );
+                            provider.setFilter(
+                              'price__lte',
+                              _maxPriceController.text,
+                            );
+                            provider.setFilter(
+                              'category',
+                              _selectedCategory?.id.toString() ?? '',
+                            );
+                            Navigator.of(ctx).pop();
+                          },
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<ProductProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catálogo'),
+        title: Text('Catálogo'),
         actions: [
-          // TODO: Añadiremos el ícono del carrito aquí
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar Sesión',
+            icon: Icon(Icons.sort),
+            onPressed: () => _showSortOptions(context),
+          ),
+          IconButton(
+            icon: Icon(Icons.filter_list),
+            onPressed: () => _showFilterOptions(context),
+          ),
+
+          const CartBadge(), // Esto dará error hasta que creemos cart_badge.dart
+
+          IconButton(
+            icon: Icon(Icons.logout),
             onPressed: () {
-              // <--- 4. Limpiar carrito ANTES de hacer logout ---
-              context.read<CartProvider>().clearLocalCart();
-              context.read<AuthProvider>().logout();
+              Provider.of<AuthProvider>(context, listen: false).logout();
             },
           ),
         ],
       ),
-      body: _isLoadingProducts
-          ? const Center(child: CircularProgressIndicator())
-          : Consumer<ProductProvider>(
-              builder: (context, productProvider, child) {
-                // ... (El resto del widget Consumer sigue igual) ...
-                if (productProvider.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 60,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error al cargar productos:',
-                          style: Theme.of(context).textTheme.titleLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          productProvider.errorMessage,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Reintentar'),
-                          onPressed: _refreshProducts,
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (productProvider.status == ProductStatus.loaded) {
-                  if (productProvider.products.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No hay productos disponibles.',
-                        style: TextStyle(fontSize: 18),
+      body: provider.isLoading
+          ? Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      labelText: 'Buscar producto...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                    );
-                  }
-                  return GridView.builder(
+                    ),
+                    onChanged: (value) {
+                      provider.setFilter('search', value);
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
                     padding: const EdgeInsets.all(10.0),
-                    itemCount: productProvider.products.length,
+                    itemCount: provider.products.length,
+                    itemBuilder: (ctx, i) =>
+                        ProductGridItem(product: provider.products[i]),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
@@ -134,12 +263,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
                         ),
-                    itemBuilder: (ctx, i) =>
-                        ProductGridItem(product: productProvider.products[i]),
-                  );
-                }
-                return const Center(child: CircularProgressIndicator());
-              },
+                  ),
+                ),
+              ],
             ),
     );
   }

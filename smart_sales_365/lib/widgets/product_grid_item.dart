@@ -1,91 +1,78 @@
 // lib/widgets/product_grid_item.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smart_sales_365/models/product_model.dart';
-import 'package:smart_sales_365/screens/product_detail_screen.dart'; // Importa la pantalla de detalle
+import 'package:smart_sales_365/screens/product_detail_screen.dart';
+import 'package:smart_sales_365/providers/cart_provider.dart';
 
 class ProductGridItem extends StatelessWidget {
   final Product product;
 
-  const ProductGridItem({super.key, required this.product});
+  const ProductGridItem({Key? key, required this.product}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // Usamos 'Provider.of' sin 'listen: false' aquí
+    final cart = Provider.of<CartProvider>(context, listen: false);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      // Envolvemos todo en InkWell para hacerlo tappable
-      child: InkWell(
-        onTap: () {
-          // Navegamos a la pantalla de detalle al tocar
-          Navigator.of(context).pushNamed(
-            ProductDetailScreen.routeName,
-            arguments: product.id, // Pasamos el ID del producto como argumento
-          );
-        },
-        child: Column(
-          // El contenido del Card sigue igual
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // --- Imagen del Producto ---
-            Expanded(
-              child: Container(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: GridTile(
+        child: GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => ProductDetailScreen(product: product),
+              ),
+            );
+          },
+          child: Image.network(
+            product.image ??
+                'https://via.placeholder.com/150', // Imagen por defecto
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
                 color: Colors.grey[200],
-                child: product.image != null
-                    ? Image.network(
-                        product.image!,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.image_not_supported,
-                              color: Colors.grey,
-                            ),
-                          );
-                        },
-                      )
-                    : const Center(
-                        child: Icon(
-                          Icons.inventory_2_outlined,
-                          color: Colors.grey,
-                          size: 40,
-                        ),
-                      ),
-              ),
-            ),
+                child: Icon(Icons.broken_image, color: Colors.grey[400]),
+              );
+            },
+          ),
+        ),
+        footer: GridTileBar(
+          backgroundColor: Colors.black87,
+          title: Text(
+            product.name,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12),
+          ),
+          subtitle: Text(
+            '\$${product.price}', // Mostrar precio
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          trailing: IconButton(
+            icon: Icon(Icons.add_shopping_cart),
+            onPressed: () {
+              // --- MODIFICACIÓN: Pasamos el objeto 'product' completo ---
+              cart.addItem(product);
 
-            // --- Nombre y Precio ---
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: theme.textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${product.name} añadido al carrito!'),
+                  duration: Duration(seconds: 2),
+                  action: SnackBarAction(
+                    label: 'DESHACER',
+                    onPressed: () {
+                      // --- MODIFICACIÓN: Usamos el método que sí existe ---
+                      cart.removeSingleItem(product.id);
+                    },
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '\$${product.price.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              );
+            },
+            color: Theme.of(context).colorScheme.secondaryContainer,
+          ),
         ),
       ),
     );
