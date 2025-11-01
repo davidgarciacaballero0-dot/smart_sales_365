@@ -1,7 +1,7 @@
 name: smart_sales_365
 description: "A new Flutter project."
 
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none' 
 
 version: 1.0.0+1
 
@@ -16,9 +16,11 @@ dependencies:
   provider: ^6.0.0
   http: ^1.0.0
   shared_preferences: ^2.0.0
-  
-  # --- AÑADIDO PARA LA FUNCIONALIDAD DE RESEÑAS ---
   flutter_rating_bar: ^4.0.1
+
+  # --- AÑADIDO PARA LA PASARELA DE PAGO ---
+  flutter_stripe: ^10.1.1
+  url_launcher: ^6.2.6
   # --- FIN DE LA MODIFICACIÓN ---
 
 dev_dependencies:

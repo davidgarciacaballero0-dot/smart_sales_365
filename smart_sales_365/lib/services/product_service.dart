@@ -1,12 +1,12 @@
 // lib/services/product_service.dart
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_sales_365/models/product_model.dart';
+
 import 'package:smart_sales_365/models/category_model.dart';
 import 'package:smart_sales_365/models/brand_model.dart';
-// Importamos el nuevo modelo de reseñas
 import 'package:smart_sales_365/models/review_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 class ProductService {
   final String baseUrl =
@@ -18,9 +18,8 @@ class ProductService {
     // --- FIN CORRECIÓN ---
 
     if (params != null && params.isNotEmpty) {
-      final activeParams = Map.fromEntries(
-        params.entries.where((e) => e.value.isNotEmpty),
-      );
+      final activeParams =
+          Map.fromEntries(params.entries.where((e) => e.value.isNotEmpty));
       uri = uri.replace(queryParameters: activeParams);
     }
     final response = await http.get(uri);
@@ -35,9 +34,8 @@ class ProductService {
 
   Future<Product> getProductById(int id) async {
     // --- CORRECCIÓN LINTER ---
-    final response = await http.get(
-      Uri.parse('$baseUrl/$id/'),
-    ); // Usar interpolación
+    final response =
+        await http.get(Uri.parse('$baseUrl/$id/')); // Usar interpolación
     // --- FIN CORRECIÓN ---
     if (response.statusCode == 200) {
       return Product.fromJson(json.decode(utf8.decode(response.bodyBytes)));
@@ -48,9 +46,8 @@ class ProductService {
 
   Future<List<Category>> getCategories() async {
     // --- CORRECCIÓN LINTER ---
-    final response = await http.get(
-      Uri.parse('$baseUrl/categories/'),
-    ); // Usar interpolación
+    final response =
+        await http.get(Uri.parse('$baseUrl/categories/')); // Usar interpolación
     // --- FIN CORRECIÓN ---
     if (response.statusCode == 200) {
       final data = json.decode(utf8.decode(response.bodyBytes)) as List;
@@ -62,9 +59,8 @@ class ProductService {
 
   Future<List<Brand>> getBrands() async {
     // --- CORRECCIÓN LINTER ---
-    final response = await http.get(
-      Uri.parse('$baseUrl/brands/'),
-    ); // Usar interpolación
+    final response =
+        await http.get(Uri.parse('$baseUrl/brands/')); // Usar interpolación
     // --- FIN CORRECIÓN ---
     if (response.statusCode == 200) {
       final data = json.decode(utf8.decode(response.bodyBytes)) as List;
@@ -108,7 +104,10 @@ class ProductService {
         'Content-Type': 'application/json',
         'Authorization': 'Token $token',
       },
-      body: json.encode({'rating': rating, 'comment': comment}),
+      body: json.encode({
+        'rating': rating,
+        'comment': comment,
+      }),
     );
 
     // 3. Manejar la respuesta

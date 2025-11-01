@@ -47,6 +47,5 @@ class Product {
       'image': image,
     };
   }
-
   // --- FIN DE LA MODIFICACIÓN ---
 }

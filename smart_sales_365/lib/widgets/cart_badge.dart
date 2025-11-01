@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_sales_365/providers/cart_provider.dart';
-import 'package:smart_sales_365/screens/cart_screen.dart'; // <-- AÑADIR IMPORTACIÓN
+// Importamos la nueva pantalla del carrito
+import 'package:smart_sales_365/screens/cart_screen.dart';
 
 class CartBadge extends StatelessWidget {
   const CartBadge({super.key});
@@ -18,9 +19,10 @@ class CartBadge extends StatelessWidget {
       child: IconButton(
         icon: const Icon(Icons.shopping_cart_outlined),
         onPressed: () {
-          // --- MODIFICACIÓN: Navegar a la pantalla del carrito ---
-          Navigator.of(context).pushNamed(CartScreen.routeName);
-          // --- FIN DE LA MODIFICACIÓN ---
+          // --- CORRECCIÓN: Navegamos a la pantalla del carrito ---
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (ctx) => const CartScreen()),
+          );
         },
       ),
     );

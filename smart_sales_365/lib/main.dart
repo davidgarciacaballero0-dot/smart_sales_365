@@ -7,8 +7,20 @@ import 'package:smart_sales_365/providers/product_provider.dart';
 import 'package:smart_sales_365/screens/auth_wrapper.dart';
 import 'package:smart_sales_365/screens/login_screen.dart';
 import 'package:smart_sales_365/screens/register_screen.dart';
+// --- AÑADIDO PARA STRIPE ---
+import 'package:flutter_stripe/flutter_stripe.dart';
+// --- FIN DE LA MODIFICACIÓN ---
 
 void main() {
+  // --- AÑADIDO PARA STRIPE ---
+  // Asegúrate de que Flutter esté inicializado
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Configura tu clave publicable de Stripe
+  // ¡¡IMPORTANTE: Reemplaza esto con tu propia clave!!
+  Stripe.publishableKey = 'TU_CLAVE_PUBLICABLE_VA_AQUI';
+  // --- FIN DE LA MODIFICACIÓN ---
+
   runApp(const MyApp());
 }
 
@@ -20,10 +32,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (ctx) => AuthProvider()),
-        // --- CORRECCIÓN DEL ERROR ---
-        // Cambiado de 'ChangeFakerProvider' (o similar) al nombre correcto
         ChangeNotifierProvider(create: (ctx) => ProductProvider()),
-        // --- FIN DE LA CORRECCIÓN ---
         ChangeNotifierProvider(create: (ctx) => CartProvider()),
       ],
       child: Consumer<AuthProvider>(
@@ -74,7 +83,6 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           home: const AuthWrapper(),
           routes: {
-            // Rutas nombradas (aunque AuthWrapper maneja el flujo principal)
             '/login': (ctx) => const LoginScreen(),
             '/register': (ctx) => const RegisterScreen(),
           },
