@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smartsales365/providers/auth_provider.dart'; // Ajusta la ruta
+import 'package:smartsales365/providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -31,7 +31,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      // Éxito: mostramos un mensaje y cerramos la pantalla de registro
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('¡Registro exitoso! Por favor, inicia sesión.'),
@@ -40,7 +39,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       Navigator.of(context).pop(); // Vuelve a la pantalla de Login
     } else if (mounted) {
-      // Falla: muestra el error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.errorMessage ?? 'Error de registro'),

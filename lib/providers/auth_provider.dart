@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-// Asegúrate de que la ruta a tu servicio sea correcta
 import 'package:smartsales365/services/auth_service.dart';
 
-// 1. CORRECCIÓN DEL ENUM: Añadimos 'loading'
 enum AuthStatus {
-  uninitialized, // Estado inicial
-  authenticated, // Logueado
-  unauthenticated, // No logueado
-  loading, // Cargando (para login/registro)
+  uninitialized,
+  authenticated,
+  unauthenticated,
+  loading, // ¡AÑADIDO!
 }
 
 class AuthProvider extends ChangeNotifier {
@@ -17,7 +15,6 @@ class AuthProvider extends ChangeNotifier {
   String? _accessToken;
   String? _errorMessage;
 
-  // Getters públicos
   AuthStatus get status => _status;
   String? get accessToken => _accessToken;
   String? get errorMessage => _errorMessage;
@@ -26,13 +23,11 @@ class AuthProvider extends ChangeNotifier {
     tryAutoLogin();
   }
 
-  // 1. Intento de Auto-Login
   Future<void> tryAutoLogin() async {
-    _status = AuthStatus.uninitialized; // Estado de carga inicial
+    _status = AuthStatus.uninitialized;
     notifyListeners();
 
     bool success = await _authService.refreshToken();
-
     if (success) {
       _accessToken = await _authService.getAccessToken();
       _status = AuthStatus.authenticated;
@@ -42,9 +37,8 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 2. Iniciar Sesión Manual
   Future<bool> login(String username, String password) async {
-    _status = AuthStatus.loading; // Usamos 'loading'
+    _status = AuthStatus.loading; // CAMBIADO
     _errorMessage = null;
     notifyListeners();
 
@@ -57,14 +51,13 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } else {
       _accessToken = null;
-      _status = AuthStatus.unauthenticated; // Vuelve a no autenticado
+      _status = AuthStatus.unauthenticated;
       _errorMessage = result['message'];
       notifyListeners();
       return false;
     }
   }
 
-  // 3. Cerrar Sesión
   Future<void> logout() async {
     await _authService.logout();
     _accessToken = null;
@@ -72,7 +65,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 4. CORRECCIÓN: FUNCIÓN 'register' AÑADIDA
+  // ¡FUNCIÓN DE REGISTRO AÑADIDA!
   Future<bool> register({
     required String username,
     required String email,
@@ -80,7 +73,7 @@ class AuthProvider extends ChangeNotifier {
     String? firstName,
     String? lastName,
   }) async {
-    _status = AuthStatus.loading; // Usamos 'loading'
+    _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
 
@@ -88,18 +81,15 @@ class AuthProvider extends ChangeNotifier {
       username: username,
       email: email,
       password: password,
-      firstName: firstName, // Opcional
-      lastName: lastName, // Opcional
+      firstName: firstName,
+      lastName: lastName,
     );
 
     if (result['success'] == true) {
-      // Si el registro es exitoso, volvemos a 'unauthenticated'
-      // para que el usuario pueda hacer login.
       _status = AuthStatus.unauthenticated;
       notifyListeners();
       return true;
     } else {
-      // Falla el registro
       _status = AuthStatus.unauthenticated;
       _errorMessage = result['message'];
       notifyListeners();

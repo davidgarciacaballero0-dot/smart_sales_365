@@ -9,24 +9,20 @@ class AuthService {
 
   // --- Almacenamiento de Tokens ---
 
-  // Guarda el Access Token (temporal) en SharedPreferences
   Future<void> _saveAccessToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('accessToken', token);
   }
 
-  // Guarda el Refresh Token (permanente) en SecureStorage
   Future<void> _saveRefreshToken(String token) async {
     await _secureStorage.write(key: 'refreshToken', value: token);
   }
 
-  // Obtiene el Access Token
   Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('accessToken');
   }
 
-  // Borra ambos tokens al cerrar sesión
   Future<void> _deleteAllTokens() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('accessToken');
@@ -97,7 +93,6 @@ class AuthService {
   }
 
   // 4. REGISTRO (¡NUEVA FUNCIÓN!)
-  // El serializer del backend pide estos campos
   Future<Map<String, dynamic>> register({
     required String username,
     required String email,
@@ -121,12 +116,9 @@ class AuthService {
       );
 
       if (response.statusCode == 201) {
-        // Registro exitoso
         return {'success': true};
       } else {
-        // Error de validación (ej. usuario ya existe)
         final errorData = json.decode(response.body);
-        // Formateamos los errores para que sean legibles
         String errorMessage = errorData.toString();
         if (errorData is Map) {
           errorMessage = errorData.entries

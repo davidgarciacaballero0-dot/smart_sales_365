@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smartsales365/providers/auth_provider.dart'; // Ajusta la ruta
+import 'package:smartsales365/providers/auth_provider.dart';
+import 'package:smartsales365/screens/register_screen.dart'; // ¡Importante!
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,13 +15,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // (Para pruebas rápidas, puedes pre-llenar esto)
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _usernameController.text = 'tu_usuario_admin';
-  //   _passwordController.text = 'tu_contraseña';
-  // }
+  // 1. VARIABLE DE ESTADO AÑADIDA
+  bool _isPasswordObscured = true;
 
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -33,7 +29,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (!success && mounted) {
-      // Si falló, muestra el error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.errorMessage ?? 'Error desconocido'),
@@ -41,7 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     }
-    // Si tuvo éxito, el AuthWrapper nos moverá automáticamente
   }
 
   @override
@@ -74,23 +68,39 @@ class _LoginScreenState extends State<LoginScreen> {
                       value!.isEmpty ? 'Ingrese su usuario' : null,
                 ),
                 const SizedBox(height: 20),
+
+                // 2. TEXTFORMFIELD DE CONTRASEÑA ACTUALIZADO
                 TextFormField(
                   controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: _isPasswordObscured, // Usa la variable
+                  decoration: InputDecoration(
+                    // Se quita 'const'
                     labelText: 'Contraseña',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      // ¡AÑADIDO!
+                      icon: Icon(
+                        _isPasswordObscured
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordObscured = !_isPasswordObscured;
+                        });
+                      },
+                    ),
                   ),
                   validator: (value) =>
                       value!.isEmpty ? 'Ingrese su contraseña' : null,
                 ),
                 const SizedBox(height: 30),
 
-                // Consumer para mostrar el botón o el loading
                 Consumer<AuthProvider>(
                   builder: (context, auth, child) {
-                    if (auth.status == AuthStatus.uninitialized) {
+                    // Actualizado para usar el estado 'loading'
+                    if (auth.status == AuthStatus.loading) {
                       return const CircularProgressIndicator();
                     }
                     return SizedBox(
@@ -110,7 +120,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     );
                   },
                 ),
-                // (Aquí irá el botón de registro en el futuro)
+
+                // 3. BOTÓN DE REGISTRO AÑADIDO
+                const SizedBox(height: 20),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('¿No tienes una cuenta? Regístrate'),
+                ),
               ],
             ),
           ),
