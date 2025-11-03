@@ -1,0 +1,186 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smartsales365/providers/auth_provider.dart'; // Ajusta la ruta
+
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _passwordConfirmController = TextEditingController();
+
+  bool _isPasswordObscured = true;
+  bool _isConfirmPasswordObscured = true;
+
+  Future<void> _submitRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    bool success = await authProvider.register(
+      username: _usernameController.text,
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
+
+    if (success && mounted) {
+      // Éxito: mostramos un mensaje y cerramos la pantalla de registro
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Registro exitoso! Por favor, inicia sesión.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pop(); // Vuelve a la pantalla de Login
+    } else if (mounted) {
+      // Falla: muestra el error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage ?? 'Error de registro'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Crear Cuenta'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.blueGrey[800],
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Usuario',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) =>
+                      value!.isEmpty ? 'Ingrese un usuario' : null,
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Ingrese un email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Ingrese un email válido';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _isPasswordObscured,
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordObscured
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordObscured = !_isPasswordObscured;
+                        });
+                      },
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Ingrese una contraseña';
+                    }
+                    if (value.length < 8) {
+                      // Django por defecto pide 8
+                      return 'Debe tener al menos 8 caracteres';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _passwordConfirmController,
+                  obscureText: _isConfirmPasswordObscured,
+                  decoration: InputDecoration(
+                    labelText: 'Confirmar Contraseña',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isConfirmPasswordObscured
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isConfirmPasswordObscured =
+                              !_isConfirmPasswordObscured;
+                        });
+                      },
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value != _passwordController.text) {
+                      return 'Las contraseñas no coinciden';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 30),
+                Consumer<AuthProvider>(
+                  builder: (context, auth, child) {
+                    if (auth.status == AuthStatus.loading) {
+                      return const CircularProgressIndicator();
+                    }
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _submitRegister,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Colors.blueGrey[700],
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text(
+                          'Registrarse',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
