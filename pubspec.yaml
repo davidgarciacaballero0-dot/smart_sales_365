@@ -33,19 +33,22 @@ dependencies:
   # Lo que acabamos de agregar:
 
   # Para gestión de estado (nuestro "cerebro" de UI)
-  provider: ^6.1.2
+  provider: ^6.1.5+1
 
   # Para realizar llamadas a nuestra API REST
-  http: ^1.2.1
+  http: ^1.5.0
 
   # Para guardar datos simples (como preferencias)
   shared_preferences: ^2.2.3
 
   # ¡IMPORTANTE! Para guardar de forma segura el Refresh Token de JWT
-  flutter_secure_storage: ^9.1.1
+  flutter_secure_storage: ^9.2.4
 
   # (El resto de dependencias, como cupertino_icons, van después)
   cupertino_icons: ^1.0.6
+  go_router: ^17.0.0
+  webview_flutter: ^4.13.0
+  fl_chart: ^1.1.1
   
 
 dev_dependencies:
