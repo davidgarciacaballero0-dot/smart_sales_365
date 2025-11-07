@@ -1,172 +1,111 @@
 // lib/providers/auth_provider.dart
+import 'package:flutter/material.dart';
+// Importa tu propio auth_service.dart, que ya es muy avanzado
+import 'package:smartsales365/services/auth_service.dart';
 
-// 'foundation.dart' nos da acceso a 'ChangeNotifier'
-import 'package:flutter/foundation.dart';
-import 'package:smartsales365/services/api_service.dart';
+// 1. DEFINIMOS EL ENUM 'AuthStatus' AQUÍ
+// (Esto arregla "Undefined name 'AuthStatus'")
+enum AuthStatus { uninitialized, authenticated, unauthenticated, loading }
 
-// 'with ChangeNotifier' es lo que le da a esta clase
-// el poder de "notificar" a los widgets cuando algo cambia.
+// 2. USAMOS 'with ChangeNotifier' (como ya corregiste)
 class AuthProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService();
 
-  // --- ESTADO INTERNO DE LA APP ---
+  // 3. DEFINIMOS LAS PROPIEDADES QUE TUS PANTALLAS NECESITAN
+  AuthStatus _status = AuthStatus.uninitialized;
+  String? _accessToken;
+  String? _errorMessage;
 
-  // Guardamos el estado de autenticación.
-  // Usamos 'bool?' (booleano nulable) para tener 3 estados:
-  // null = 'desconocido' (la app acaba de iniciar, aún no hemos revisado)
-  // true = 'autenticado'
-  // false = 'anónimo' (no está logueado)
-  bool? _isAuthenticated;
+  // 4. CREAMOS LOS 'GETTERS' PÚBLICOS
+  // (Esto arregla "The getter 'status' isn't defined")
+  AuthStatus get status => _status;
 
-  // --- GETTERS (Forma pública de leer el estado) ---
+  // (Esto arregla "The getter 'errorMessage' isn't defined")
+  String? get errorMessage => _errorMessage;
 
-  /// 'true' si el usuario está logueado, 'false' en cualquier otro caso.
-  bool get isAuthenticated => _isAuthenticated == true;
+  String? get accessToken => _accessToken;
 
-  /// 'true' si ya terminamos de revisar el token al inicio.
-  /// Lo usamos para mostrar una pantalla de carga (Splash Screen) al inicio.
-  bool get isAuthStatusKnown => _isAuthenticated != null;
-
-  // --- CONSTRUCTOR ---
-
-  /// El Constructor se ejecuta tan pronto se crea el AuthProvider.
+  // Constructor
   AuthProvider() {
-    // Inmediatamente, mandamos a revisar si ya teníamos un token guardado
-    _checkTokenOnStartup();
+    tryAutoLogin();
   }
 
-  // --- MÉTODOS PRIVADOS ---
+  // --- MÉTODOS ---
 
-  /// Revisa el 'FlutterSecureStorage' al iniciar la app.
-  void _checkTokenOnStartup() async {
-    final token = await _apiService.getToken();
+  Future<void> tryAutoLogin() async {
+    _status = AuthStatus.uninitialized;
+    notifyListeners();
 
-    // Pequeña demora para que la transición sea suave (opcional)
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (token != null) {
-      _isAuthenticated = true;
+    bool success = await _authService.refreshToken();
+    if (success) {
+      _accessToken = await _authService.getAccessToken();
+      _status = AuthStatus.authenticated;
     } else {
-      _isAuthenticated = false;
+      _status = AuthStatus.unauthenticated;
     }
-
-    // ¡Aviso a todos los widgets que estén "escuchando"!
-    // Les digo: "¡Ya sé el estado de autenticación, pueden redibujarse!"
     notifyListeners();
   }
 
-  // --- ACCIONES (Métodos públicos llamados por la UI) ---
+  Future<bool> login(String username, String password) async {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    notifyListeners();
 
-  /// Intenta iniciar sesión.
-  /// Devuelve 'null' si fue exitoso.
-  /// Devuelve un 'String' con el mensaje de error si falló.
-  Future<String?> login(String email, String password) async {
-    try {
-      bool success = await _apiService.login(email, password);
+    final result = await _authService.login(username, password);
 
-      if (success) {
-        _isAuthenticated = true;
-        // Notificamos a los widgets que el estado cambió (de 'false' a 'true')
-        notifyListeners();
-        return null; // Éxito, no hay error
-      } else {
-        // Falló el login (email/pass incorrectos)
-        return 'Email o contraseña incorrectos.';
-      }
-    } catch (e) {
-      // Captura errores de conexión (ej. SocketException del ApiService)
-      return e.toString().replaceAll('Exception: ', ''); // Devuelve el error
-    }
-  }
-
-  /// Cierra la sesión del usuario
-  Future<void> logout() async {
-    await _apiService.logout(); // Borra el token
-    _isAuthenticated = false;
-    notifyListeners(); // Notifica que el estado cambió (de 'true' a 'false')
-  }
-} // lib/providers/auth_provider.dart
-// 'foundation.dart' nos da acceso a 'ChangeNotifier'
-
-// 'with ChangeNotifier' es lo que le da a esta clase
-// el poder de "notificar" a los widgets cuando algo cambia.
-class AuthProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
-
-  // --- ESTADO INTERNO DE LA APP ---
-
-  // Guardamos el estado de autenticación.
-  // Usamos 'bool?' (booleano nulable) para tener 3 estados:
-  // null = 'desconocido' (la app acaba de iniciar, aún no hemos revisado)
-  // true = 'autenticado'
-  // false = 'anónimo' (no está logueado)
-  bool? _isAuthenticated;
-
-  // --- GETTERS (Forma pública de leer el estado) ---
-
-  /// 'true' si el usuario está logueado, 'false' en cualquier otro caso.
-  bool get isAuthenticated => _isAuthenticated == true;
-
-  /// 'true' si ya terminamos de revisar el token al inicio.
-  /// Lo usamos para mostrar una pantalla de carga (Splash Screen) al inicio.
-  bool get isAuthStatusKnown => _isAuthenticated != null;
-
-  // --- CONSTRUCTOR ---
-
-  /// El Constructor se ejecuta tan pronto se crea el AuthProvider.
-  AuthProvider() {
-    // Inmediatamente, mandamos a revisar si ya teníamos un token guardado
-    _checkTokenOnStartup();
-  }
-
-  // --- MÉTODOS PRIVADOS ---
-
-  /// Revisa el 'FlutterSecureStorage' al iniciar la app.
-  void _checkTokenOnStartup() async {
-    final token = await _apiService.getToken();
-
-    // Pequeña demora para que la transición sea suave (opcional)
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (token != null) {
-      _isAuthenticated = true;
+    if (result['success'] == true) {
+      _accessToken = result['access'];
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
     } else {
-      _isAuthenticated = false;
+      _accessToken = null;
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = result['message'];
+      notifyListeners();
+      return false;
     }
+  }
 
-    // ¡Aviso a todos los widgets que estén "escuchando"!
-    // Les digo: "¡Ya sé el estado de autenticación, pueden redibujarse!"
+  Future<void> logout() async {
+    await _authService.logout();
+    _accessToken = null;
+    _status = AuthStatus.unauthenticated;
     notifyListeners();
   }
 
-  // --- ACCIONES (Métodos públicos llamados por la UI) ---
+  // 5. DEFINIMOS EL MÉTODO 'register'
+  // (Esto arregla "The method 'register' isn't defined")
+  Future<bool> register({
+    required String username,
+    required String email,
+    required String password,
+    String? firstName,
+    String? lastName,
+  }) async {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    notifyListeners();
 
-  /// Intenta iniciar sesión.
-  /// Devuelve 'null' si fue exitoso.
-  /// Devuelve un 'String' con el mensaje de error si falló.
-  Future<String?> login(String email, String password) async {
-    try {
-      bool success = await _apiService.login(email, password);
+    final result = await _authService.register(
+      username: username,
+      email: email,
+      password: password,
+      firstName: firstName,
+      lastName: lastName,
+    );
 
-      if (success) {
-        _isAuthenticated = true;
-        // Notificamos a los widgets que el estado cambió (de 'false' a 'true')
-        notifyListeners();
-        return null; // Éxito, no hay error
-      } else {
-        // Falló el login (email/pass incorrectos)
-        return 'Email o contraseña incorrectos.';
-      }
-    } catch (e) {
-      // Captura errores de conexión (ej. SocketException del ApiService)
-      return e.toString().replaceAll('Exception: ', ''); // Devuelve el error
+    if (result['success'] == true) {
+      // Éxito, pero el usuario debe iniciar sesión
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return true;
+    } else {
+      // Falló el registro
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = result['message'];
+      notifyListeners();
+      return false;
     }
-  }
-
-  /// Cierra la sesión del usuario
-  Future<void> logout() async {
-    await _apiService.logout(); // Borra el token
-    _isAuthenticated = false;
-    notifyListeners(); // Notifica que el estado cambió (de 'true' a 'false')
   }
 }

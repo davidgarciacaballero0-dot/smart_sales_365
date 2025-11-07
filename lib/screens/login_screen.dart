@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_cast
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
@@ -23,10 +25,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    bool success = await authProvider.login(
-      _usernameController.text,
-      _passwordController.text,
-    );
+    bool success =
+        (await authProvider.login(
+              _usernameController.text,
+              _passwordController.text,
+            ))
+            as bool;
 
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -1,5 +1,7 @@
 // lib/services/api_service.dart
 
+// ignore_for_file: prefer_adjacent_string_concatenation
+
 import 'dart:convert'; // Para decodificar (JSON) y codificar (UTF-8)
 import 'dart:io'; // Para capturar errores de conexión (SocketException)
 import 'package:http/http.dart' as http;
