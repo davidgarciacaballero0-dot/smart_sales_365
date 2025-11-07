@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/services/analytics_service.dart';
 import 'package:fl_chart/fl_chart.dart';
-// 1. IMPORTA LA NUEVA PANTALLA DE GESTIÓN DE PRODUCTOS
 import 'package:smartsales365/screens/admin/admin_product_list_screen.dart';
+// 1. IMPORTA LAS NUEVAS PANTALLAS
+import 'package:smartsales365/screens/admin/admin_category_list_screen.dart';
+import 'package:smartsales365/screens/admin/admin_brand_list_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -56,7 +58,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             const SizedBox(height: 24),
 
-            // --- Gráfico de Predicciones (sin cambios) ---
             Text(
               'Predicciones de Ventas (Próximos 7 días)',
               style: Theme.of(context).textTheme.titleLarge,
@@ -68,14 +69,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const Divider(),
             const SizedBox(height: 16),
 
-            // --- ¡NUEVA SECCIÓN DE GESTIÓN! ---
             Text(
               'Gestión de la Tienda',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
 
-            // 2. Botón para gestionar productos
+            // Botón para gestionar productos (existente)
             Card(
               elevation: 1,
               child: ListTile(
@@ -84,7 +84,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 subtitle: const Text('Ver, crear, editar y eliminar productos'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  // 3. Navega a la pantalla de lista de productos
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -95,7 +94,45 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
 
-            // (Aquí añadiremos "Gestionar Categorías" y "Gestionar Marcas")
+            // 2. NUEVO BOTÓN PARA CATEGORÍAS
+            Card(
+              elevation: 1,
+              child: ListTile(
+                leading: const Icon(Icons.category_outlined, size: 30),
+                title: const Text('Gestionar Categorías'),
+                subtitle: const Text(
+                  'Ver, crear, editar y eliminar categorías',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminCategoryListScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // 3. NUEVO BOTÓN PARA MARCAS
+            Card(
+              elevation: 1,
+              child: ListTile(
+                leading: const Icon(Icons.label_outline, size: 30),
+                title: const Text('Gestionar Marcas'),
+                subtitle: const Text('Ver, crear, editar y eliminar marcas'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdminBrandListScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -104,7 +141,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // --- Gráfico (sin cambios) ---
   Widget _buildPredictionsChart() {
-    // ... (código idéntico de la respuesta anterior) ...
     return AspectRatio(
       aspectRatio: 1.7,
       child: Card(
