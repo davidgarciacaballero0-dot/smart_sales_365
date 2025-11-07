@@ -12,37 +12,30 @@ class OrderService {
   Future<String> createOrder(String token, CartProvider cart) async {
     final Uri url = Uri.parse('$_baseUrl/orders/create/');
 
-    // 1. Convierte los ítems del carrito al formato JSON que tu backend espera
-    // (Tu backend espera una lista de {'product_id': X, 'quantity': Y})
     List<Map<String, dynamic>> orderItems = cart.items.map((item) {
       return {'product_id': item.product.id, 'quantity': item.quantity};
     }).toList();
 
-    // El cuerpo de la petición
-    final body = jsonEncode({
-      'items': orderItems,
-      // (Opcional) Tu backend también acepta 'shipping_address',
-      // 'billing_address', etc. Podemos añadirlos aquí más tarde.
-    });
+    final body = jsonEncode({'items': orderItems});
 
     try {
       final response = await http.post(
         url,
         headers: {
-          'Content-Type': 'application/json; charset=UTF-R8',
-          // 2. ¡MUY IMPORTANTE! Inyecta el token de autenticación
-          'Authorization': 'Token $token',
+          'Content-Type': 'application/json; charset=UTF-8',
+
+          // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+          // Cambiamos 'Token' por 'Bearer' para que coincida
+          // con la autenticación JWT de tu backend.
+          'Authorization': 'Bearer $token',
         },
         body: body,
       );
 
       if (response.statusCode == 201) {
-        // ¡Éxito! (201 = Creado)
         final Map<String, dynamic> data = jsonDecode(
           utf8.decode(response.bodyBytes),
         );
-
-        // 3. Extrae la 'checkout_url' de la respuesta del backend
         final String? checkoutUrl = data['checkout_url'];
 
         if (checkoutUrl != null) {
@@ -51,7 +44,7 @@ class OrderService {
           throw Exception('El backend no devolvió una checkout_url.');
         }
       } else {
-        // Error (ej. 401 No Autorizado, 400 Bad Request)
+        // El error 401 que veías entrará aquí
         throw Exception(
           'Error al crear el pedido: ${response.statusCode} - ${response.body}',
         );
