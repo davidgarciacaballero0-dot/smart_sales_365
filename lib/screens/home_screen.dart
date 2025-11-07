@@ -3,9 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
-import 'package:smartsales365/screens/catalog_screen.dart'; // Pestaña 1
-import 'package:smartsales365/screens/cart_screen.dart'; // Pestaña 2
-import 'package:smartsales365/screens/login_screen.dart'; // Pestaña 3 (si no está logueado)
+import 'package:smartsales365/screens/catalog_screen.dart';
+import 'package:smartsales365/screens/cart_screen.dart';
+import 'package:smartsales365/screens/login_screen.dart';
+// 1. IMPORTA LA NUEVA PANTALLA DE HISTORIAL
+import 'package:smartsales365/screens/order_history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,13 +17,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // Controla qué pestaña está activa (0 = Tienda)
+  int _selectedIndex = 0;
 
-  // Lista de pantallas para la navegación
   final List<Widget> _screens = [
-    const CatalogScreen(), // Pestaña 0: La tienda
-    const CartScreen(), // Pestaña 1: El carrito (¡Actualizado!)
-    const ProfileRouter(), // Pestaña 2: Perfil o Login
+    const CatalogScreen(),
+    const CartScreen(),
+    const ProfileRouter(),
   ];
 
   void _onItemTapped(int index) {
@@ -33,10 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // IndexedStack preserva el estado de cada pestaña
-      // (ej. no pierdes tu búsqueda en el catálogo si vas al carrito)
       body: IndexedStack(index: _selectedIndex, children: _screens),
-      // La barra de navegación principal
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -57,66 +55,92 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: Colors.blueGrey[800], // Color del ícono activo
-        unselectedItemColor: Colors.grey, // Color de íconos inactivos
+        selectedItemColor: Colors.blueGrey[800],
+        unselectedItemColor: Colors.grey,
       ),
     );
   }
 }
 
-/// Este es un widget inteligente que decide qué mostrar en la Pestaña 3.
-/// Revisa si el usuario está logueado.
-/// Si SÍ lo está -> Muestra su perfil.
-/// Si NO lo está -> Muestra la LoginScreen.
+/// (La clase 'ProfileRouter' queda exactamente igual)
 class ProfileRouter extends StatelessWidget {
   const ProfileRouter({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 'context.watch' hace que este widget se redibuje
-    // si el estado de AuthProvider cambia (ej. al hacer login/logout)
     final authProvider = context.watch<AuthProvider>();
 
     if (authProvider.status == AuthStatus.authenticated) {
-      // Si está logueado, muestra la pantalla de perfil
       return const UserProfileScreen();
     } else {
-      // Si es invitado, muestra la pantalla de login
       return const LoginScreen();
     }
   }
 }
 
-/// Esta es la pantalla de Perfil del usuario (cuando SÍ está logueado)
-/// Aquí es donde está el mensaje "¡Bienvenido!"
+/// -------------------------------------------
+/// ¡AQUÍ ESTÁ EL CAMBIO!
+/// (Actualizamos la pantalla de Perfil)
+/// -------------------------------------------
 class UserProfileScreen extends StatelessWidget {
   const UserProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 'context.read' obtiene el provider solo para LLAMAR funciones
-    // (como 'logout')
     final authProvider = context.read<AuthProvider>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mi Perfil')),
-      body: Center(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('¡Bienvenido!', style: TextStyle(fontSize: 24)),
+            const Center(
+              child: Text(
+                '¡Bienvenido!',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+            ),
             const SizedBox(height: 30),
-            // (PRÓXIMO PASO: Aquí pondremos el historial de pedidos)
-            ElevatedButton(
+
+            // 2. NUEVO BOTÓN PARA VER HISTORIAL DE PEDIDOS
+            ElevatedButton.icon(
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Mis Pedidos'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                textStyle: const TextStyle(fontSize: 16),
+              ),
               onPressed: () {
-                // Llama al logout de tu authProvider
-                authProvider.logout();
+                // 3. Navega a la nueva pantalla
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OrderHistoryScreen(),
+                  ),
+                );
               },
+            ),
+
+            const SizedBox(height: 16),
+
+            // (Aquí podemos añadir más botones, como "Editar Perfil", etc.)
+            const Spacer(), // Ocupa todo el espacio disponible
+            // 4. BOTÓN DE CERRAR SESIÓN (ahora al final)
+            ElevatedButton.icon(
+              icon: const Icon(Icons.logout),
+              label: const Text('Cerrar Sesión'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[400],
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                textStyle: const TextStyle(fontSize: 16),
               ),
-              child: const Text('Cerrar Sesión'),
+              onPressed: () {
+                authProvider.logout();
+              },
             ),
           ],
         ),

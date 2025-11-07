@@ -2,23 +2,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
-// 1. IMPORTA EL NUEVO CART PROVIDER
 import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/screens/home_screen.dart';
 import 'package:smartsales365/screens/splash_screen.dart';
+// 1. IMPORTA LA NUEVA PANTALLA DE ADMIN
+import 'package:smartsales365/screens/admin/admin_dashboard_screen.dart';
 
 void main() {
   runApp(
-    // 2. CAMBIA A 'MultiProvider' para manejar varios providers
     MultiProvider(
       providers: [
-        // El AuthProvider que ya tenías
         ChangeNotifierProvider(create: (context) => AuthProvider()),
-
-        // El nuevo CartProvider que acabamos de crear
         ChangeNotifierProvider(create: (context) => CartProvider()),
       ],
-      child: const MyApp(), // El hijo es tu app
+      child: const MyApp(),
     ),
   );
 }
@@ -43,8 +40,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// 3. TU 'AuthWrapper' QUEDA EXACTAMENTE IGUAL
-// (No es necesario copiarlo, solo asegúrate de que esté)
+// 2. ¡AQUÍ ESTÁ LA LÓGICA DE REDIRECCIÓN!
+// Este Widget ahora comprueba el rol del usuario.
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -52,15 +49,25 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
+    // Caso 1: Aún estamos revisando el token guardado
     if (authProvider.status == AuthStatus.uninitialized) {
       return const SplashScreen();
     }
 
-    if (authProvider.status == AuthStatus.authenticated ||
-        authProvider.status == AuthStatus.unauthenticated) {
-      return const HomeScreen();
+    // Caso 2: El usuario SÍ está autenticado
+    if (authProvider.status == AuthStatus.authenticated) {
+      // 3. Revisa si es Admin
+      if (authProvider.isAdmin) {
+        // Si es Admin -> Muestra el Dashboard de Admin
+        return const AdminDashboardScreen();
+      } else {
+        // Si es Cliente -> Muestra la Tienda (HomeScreen)
+        return const HomeScreen();
+      }
     }
 
-    return const SplashScreen();
+    // Caso 3: El usuario NO está autenticado (es invitado)
+    // Muestra la Tienda (HomeScreen)
+    return const HomeScreen();
   }
 }

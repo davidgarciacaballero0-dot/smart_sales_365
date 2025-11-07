@@ -1,12 +1,16 @@
 // lib/screens/product_detail_screen.dart
 
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: unused_import, deprecated_member_use, no_leading_underscores_for_local_identifiers, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // 1. Importa Provider
+import 'package:provider/provider.dart';
 import 'package:smartsales365/models/product_model.dart';
-import 'package:smartsales365/providers/cart_provider.dart'; // 2. Importa el CartProvider
+import 'package:smartsales365/models/review_model.dart'; // 1. Importa el modelo de Review
+import 'package:smartsales365/providers/auth_provider.dart'; // 2. Importa Auth
+import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/services/product_service.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart'; // 3. Importa el paquete de estrellas
+import 'package:intl/intl.dart'; // 4. Importa intl para las fechas
 
 class ProductDetailScreen extends StatefulWidget {
   final int productId;
@@ -36,8 +40,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         elevation: 1,
       ),
 
-      // 3. AÑADIMOS UN BOTÓN FIJO EN LA PARTE INFERIOR
-      // Se mostrará solo si el producto cargó exitosamente
       bottomNavigationBar: _product != null
           ? _buildBottomBar(context, _product!)
           : null,
@@ -63,8 +65,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           }
 
           if (snapshot.hasData) {
-            // 4. CUANDO EL PRODUCTO CARGA, LO GUARDAMOS EN EL ESTADO
-            // Esto permite que el 'bottomNavigationBar' se dibuje
+            // Cuando el producto carga, lo guardamos en el estado
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
@@ -75,8 +76,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
             final product = snapshot.data!;
             return SingleChildScrollView(
-              // 5. Añadimos padding en la parte inferior para que el
-              //    botón fijo no tape el contenido
               padding: const EdgeInsets.only(bottom: 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,6 +118,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 height: 1.5,
                               ),
                         ),
+
+                        // 5. ¡NUEVA SECCIÓN DE RESEÑAS!
+                        const SizedBox(height: 24),
+                        const Divider(),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Reseñas de Clientes',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 16),
+                        // 6. Añadimos el widget de reseñas
+                        _ProductReviewsSection(productId: product.id),
                       ],
                     ),
                   ),
@@ -135,7 +146,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   // --- WIDGETS AUXILIARES (Sin cambios) ---
   Widget _buildProductImage(String? imageUrl) {
-    // ... (código idéntico al de la respuesta anterior) ...
+    // ... (código idéntico) ...
     if (imageUrl != null && imageUrl.isNotEmpty) {
       return Image.network(
         imageUrl,
@@ -168,7 +179,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildWarrantyInfo(Product product) {
-    // ... (código idéntico al de la respuesta anterior) ...
+    // ... (código idéntico) ...
     final brand = product.brand;
     final warrantyMonths = brand?.warrantyDurationMonths;
 
@@ -191,12 +202,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return const SizedBox.shrink();
   }
 
-  // 6. ¡NUEVO WIDGET PARA EL BOTÓN!
   Widget _buildBottomBar(BuildContext context, Product product) {
+    // ... (código idéntico) ...
     return Container(
-      padding: const EdgeInsets.all(16.0).copyWith(
-        bottom: MediaQuery.of(context).padding.bottom + 16, // Para safe area
-      ),
+      padding: const EdgeInsets.all(
+        16.0,
+      ).copyWith(bottom: MediaQuery.of(context).padding.bottom + 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -217,11 +228,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
         ),
         onPressed: () {
-          // 7. USA EL PROVIDER PARA AÑADIR AL CARRITO
           final cart = context.read<CartProvider>();
           cart.addToCart(product);
-
-          // 8. MUESTRA UNA NOTIFICACIÓN
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('¡"${product.name}" añadido al carrito!'),
@@ -235,6 +243,261 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
+    );
+  }
+}
+
+// 7. WIDGET DEDICADO PARA MANEJAR LAS RESEÑAS
+//    Esto es un 'StatefulWidget' para que pueda cargar y refrescar
+//    su propia lista de reseñas.
+class _ProductReviewsSection extends StatefulWidget {
+  final int productId;
+  const _ProductReviewsSection({required this.productId});
+
+  @override
+  State<_ProductReviewsSection> createState() => _ProductReviewsSectionState();
+}
+
+class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
+  final ProductService _productService = ProductService();
+  late Future<List<Review>> _reviewsFuture;
+  bool _isPostingReview = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Llama a la API para obtener las reseñas la primera vez
+    _fetchReviews();
+  }
+
+  // Método para (re)cargar las reseñas
+  void _fetchReviews() {
+    setState(() {
+      _reviewsFuture = _productService.getReviews(widget.productId);
+    });
+  }
+
+  // Método para mostrar el diálogo de escribir reseña
+  void _showReviewDialog(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
+    if (authProvider.status != AuthStatus.authenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes iniciar sesión para dejar una reseña.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    double _rating = 3.0; // Calificación inicial
+    final _commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Escribe tu Reseña'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Widget de Estrellas
+              RatingBar.builder(
+                initialRating: _rating,
+                minRating: 1,
+                direction: Axis.horizontal,
+                allowHalfRating: false,
+                itemCount: 5,
+                itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
+                itemBuilder: (context, _) =>
+                    const Icon(Icons.star, color: Colors.amber),
+                onRatingUpdate: (rating) {
+                  _rating = rating;
+                },
+              ),
+              const SizedBox(height: 16),
+              // Campo de Comentario
+              TextField(
+                controller: _commentController,
+                decoration: const InputDecoration(
+                  labelText: 'Comentario (opcional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            // Botón de Publicar
+            ElevatedButton(
+              onPressed: _isPostingReview
+                  ? null
+                  : () async {
+                      setState(() {
+                        _isPostingReview = true; // Muestra 'loading'
+                      });
+                      try {
+                        // Llama al servicio para publicar
+                        await _productService.postReview(
+                          token: authProvider.accessToken!,
+                          productId: widget.productId,
+                          rating: _rating,
+                          comment: _commentController.text,
+                        );
+
+                        Navigator.of(context).pop(); // Cierra el diálogo
+                        _fetchReviews(); // Refresca la lista de reseñas
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('¡Reseña publicada!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        // Muestra error
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      } finally {
+                        setState(() {
+                          _isPostingReview = false;
+                        });
+                      }
+                    },
+              child: _isPostingReview
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Publicar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 8. Botón para escribir reseña
+    //    Usamos 'context.watch' para que el botón aparezca
+    //    automáticamente si el usuario inicia sesión.
+    final bool isAuthenticated =
+        context.watch<AuthProvider>().status == AuthStatus.authenticated;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 9. Botón que solo aparece si estás logueado
+        if (isAuthenticated)
+          ElevatedButton.icon(
+            icon: const Icon(Icons.edit),
+            label: const Text('Escribir una reseña'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueGrey[50],
+              foregroundColor: Colors.blueGrey[800],
+              elevation: 0,
+            ),
+            onPressed: () => _showReviewDialog(context),
+          ),
+
+        const SizedBox(height: 16),
+
+        // 10. FutureBuilder para cargar la LISTA de reseñas
+        FutureBuilder<List<Review>>(
+          future: _reviewsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error al cargar reseñas: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(
+                child: Text(
+                  'Sé el primero en dejar una reseña.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+              );
+            }
+
+            final reviews = snapshot.data!;
+            // 11. Construye la lista de reseñas
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: reviews.length,
+              itemBuilder: (context, index) {
+                final review = reviews[index];
+                return Card(
+                  elevation: 0,
+                  color: Colors.grey[100],
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              review.user, // Nombre de usuario
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              review.formattedDate, // Fecha
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        // Estrellas (solo para mostrar)
+                        RatingBarIndicator(
+                          rating: review.rating.toDouble(),
+                          itemBuilder: (context, index) =>
+                              const Icon(Icons.star, color: Colors.amber),
+                          itemCount: 5,
+                          itemSize: 16.0,
+                        ),
+                        if (review.comment != null &&
+                            review.comment!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(review.comment!), // Comentario
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
     );
   }
 }
