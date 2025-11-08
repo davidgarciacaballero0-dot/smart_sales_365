@@ -5,12 +5,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/models/product_model.dart';
-import 'package:smartsales365/models/review_model.dart'; // 1. Importa el modelo de Review
-import 'package:smartsales365/providers/auth_provider.dart'; // 2. Importa Auth
 import 'package:smartsales365/providers/cart_provider.dart';
+import 'package:smartsales365/providers/tab_provider.dart'; // 1. Importa el TabProvider
 import 'package:smartsales365/services/product_service.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart'; // 3. Importa el paquete de estrellas
-import 'package:intl/intl.dart'; // 4. Importa intl para las fechas
+// ... (otros imports como review_model, auth_provider, rating_bar, intl)
+import 'package:smartsales365/models/review_model.dart';
+import 'package:smartsales365/providers/auth_provider.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:intl/intl.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final int productId;
@@ -23,11 +25,12 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late Future<Product> _productFuture;
   final ProductService _productService = ProductService();
-  Product? _product; // Guardaremos el producto aquí cuando cargue
+  Product? _product;
 
   @override
   void initState() {
     super.initState();
+    // ¡USA EL product_service ACTUALIZADO!
     _productFuture = _productService.getProductById(widget.productId);
   }
 
@@ -39,18 +42,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         backgroundColor: Colors.white,
         elevation: 1,
       ),
-
       bottomNavigationBar: _product != null
           ? _buildBottomBar(context, _product!)
           : null,
-
       body: FutureBuilder<Product>(
         future: _productFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -63,9 +63,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             );
           }
-
           if (snapshot.hasData) {
-            // Cuando el producto carga, lo guardamos en el estado
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
@@ -73,7 +71,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 });
               }
             });
-
             final product = snapshot.data!;
             return SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 100),
@@ -118,8 +115,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 height: 1.5,
                               ),
                         ),
-
-                        // 5. ¡NUEVA SECCIÓN DE RESEÑAS!
                         const SizedBox(height: 24),
                         const Divider(),
                         const SizedBox(height: 16),
@@ -128,7 +123,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 16),
-                        // 6. Añadimos el widget de reseñas
                         _ProductReviewsSection(productId: product.id),
                       ],
                     ),
@@ -137,16 +131,70 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             );
           }
-
           return const Center(child: Text('Producto no encontrado.'));
         },
       ),
     );
   }
 
-  // --- WIDGETS AUXILIARES (Sin cambios) ---
+  // --- WIDGET AUXILIAR DEL BOTÓN (ACTUALIZADO) ---
+  Widget _buildBottomBar(BuildContext context, Product product) {
+    return Container(
+      padding: const EdgeInsets.all(
+        16.0,
+      ).copyWith(bottom: MediaQuery.of(context).padding.bottom + 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: Colors.blueGrey[800],
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+        ),
+        onPressed: () {
+          // 2. LEE AMBOS PROVIDERS
+          final cart = context.read<CartProvider>();
+          final tab = context.read<TabProvider>();
+
+          // 3. AÑADE AL CARRITO
+          cart.addToCart(product);
+
+          // 4. (Opcional) Muestra la notificación
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('¡"${product.name}" añadido al carrito!'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 1),
+            ),
+          );
+
+          // 5. CAMBIA LA PESTAÑA A "CARRITO" (índice 1)
+          tab.changeTab(1);
+
+          // 6. CIERRA LA PANTALLA DE DETALLE
+          Navigator.of(context).pop();
+        },
+        child: const Text(
+          'Añadir al Carrito e Ir', // Texto actualizado
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGETS AUXILIARES (Imagen y Garantía) ---
   Widget _buildProductImage(String? imageUrl) {
-    // ... (código idéntico) ...
     if (imageUrl != null && imageUrl.isNotEmpty) {
       return Image.network(
         imageUrl,
@@ -179,7 +227,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildWarrantyInfo(Product product) {
-    // ... (código idéntico) ...
     final brand = product.brand;
     final warrantyMonths = brand?.warrantyDurationMonths;
 
@@ -201,55 +248,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
     return const SizedBox.shrink();
   }
-
-  Widget _buildBottomBar(BuildContext context, Product product) {
-    // ... (código idéntico) ...
-    return Container(
-      padding: const EdgeInsets.all(
-        16.0,
-      ).copyWith(bottom: MediaQuery.of(context).padding.bottom + 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: Colors.blueGrey[800],
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-        onPressed: () {
-          final cart = context.read<CartProvider>();
-          cart.addToCart(product);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('¡"${product.name}" añadido al carrito!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        },
-        child: const Text(
-          'Añadir al Carrito',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
 }
 
-// 7. WIDGET DEDICADO PARA MANEJAR LAS RESEÑAS
-//    Esto es un 'StatefulWidget' para que pueda cargar y refrescar
-//    su propia lista de reseñas.
+// --- WIDGET INTERNO DE RESEÑAS ---
 class _ProductReviewsSection extends StatefulWidget {
   final int productId;
   const _ProductReviewsSection({required this.productId});
@@ -266,18 +267,15 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
   @override
   void initState() {
     super.initState();
-    // Llama a la API para obtener las reseñas la primera vez
     _fetchReviews();
   }
 
-  // Método para (re)cargar las reseñas
   void _fetchReviews() {
     setState(() {
       _reviewsFuture = _productService.getReviews(widget.productId);
     });
   }
 
-  // Método para mostrar el diálogo de escribir reseña
   void _showReviewDialog(BuildContext context) {
     final authProvider = context.read<AuthProvider>();
     if (authProvider.status != AuthStatus.authenticated) {
@@ -290,7 +288,7 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
       return;
     }
 
-    double _rating = 3.0; // Calificación inicial
+    double _rating = 3.0;
     final _commentController = TextEditingController();
 
     showDialog(
@@ -301,7 +299,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Widget de Estrellas
               RatingBar.builder(
                 initialRating: _rating,
                 minRating: 1,
@@ -316,7 +313,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                 },
               ),
               const SizedBox(height: 16),
-              // Campo de Comentario
               TextField(
                 controller: _commentController,
                 decoration: const InputDecoration(
@@ -332,16 +328,14 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
               child: const Text('Cancelar'),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            // Botón de Publicar
             ElevatedButton(
               onPressed: _isPostingReview
                   ? null
                   : () async {
                       setState(() {
-                        _isPostingReview = true; // Muestra 'loading'
+                        _isPostingReview = true;
                       });
                       try {
-                        // Llama al servicio para publicar
                         await _productService.postReview(
                           token: authProvider.accessToken!,
                           productId: widget.productId,
@@ -349,8 +343,8 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                           comment: _commentController.text,
                         );
 
-                        Navigator.of(context).pop(); // Cierra el diálogo
-                        _fetchReviews(); // Refresca la lista de reseñas
+                        Navigator.of(context).pop();
+                        _fetchReviews();
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -359,7 +353,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                           ),
                         );
                       } catch (e) {
-                        // Muestra error
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -389,16 +382,12 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
 
   @override
   Widget build(BuildContext context) {
-    // 8. Botón para escribir reseña
-    //    Usamos 'context.watch' para que el botón aparezca
-    //    automáticamente si el usuario inicia sesión.
     final bool isAuthenticated =
         context.watch<AuthProvider>().status == AuthStatus.authenticated;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 9. Botón que solo aparece si estás logueado
         if (isAuthenticated)
           ElevatedButton.icon(
             icon: const Icon(Icons.edit),
@@ -413,7 +402,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
 
         const SizedBox(height: 16),
 
-        // 10. FutureBuilder para cargar la LISTA de reseñas
         FutureBuilder<List<Review>>(
           future: _reviewsFuture,
           builder: (context, snapshot) {
@@ -440,7 +428,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
             }
 
             final reviews = snapshot.data!;
-            // 11. Construye la lista de reseñas
             return ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -460,13 +447,14 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              review.user, // Nombre de usuario
+                              review.user,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             Text(
-                              review.formattedDate, // Fecha
+                              // Usando el 'getter' del modelo
+                              review.formattedDate,
                               style: const TextStyle(
                                 color: Colors.grey,
                                 fontSize: 12,
@@ -475,7 +463,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        // Estrellas (solo para mostrar)
                         RatingBarIndicator(
                           rating: review.rating.toDouble(),
                           itemBuilder: (context, index) =>
@@ -487,7 +474,7 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                             review.comment!.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(review.comment!), // Comentario
+                            child: Text(review.comment!),
                           ),
                       ],
                     ),

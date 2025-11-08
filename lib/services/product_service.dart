@@ -8,23 +8,49 @@ import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/models/review_model.dart';
 
 class ProductService {
+  // URL base de la API (Google Cloud)
   static const String _baseUrl =
-      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
-  static const String _productsEndpoint = '/products/';
+      'https://smartsales-backend-891739940726.us-central1.run.app/api';
+
+  // CORRECCIÓN de URL (Bug 1 y 2):
+  // Tu backend ruta /api/products/ (principal) + /products/ (router)
+  static const String _productsEndpoint = '/products/products/';
 
   // --- MÉTODOS PÚBLICOS (CLIENTE) ---
 
-  /// Obtiene la lista de productos (con filtro de búsqueda opcional)
-  Future<List<Product>> getProducts({String? query}) async {
-    Uri url;
+  /// Obtiene la lista de productos con filtros opcionales.
+  Future<List<Product>> getProducts({
+    String? query,
+    int? categoryId,
+    int? brandId,
+    double? minPrice,
+    double? maxPrice,
+  }) async {
+    // 1. Prepara los parámetros de consulta
+    //    (Basado en el filterset_fields de tu backend 'products/views.py')
+    final Map<String, String> queryParameters = {};
     if (query != null && query.isNotEmpty) {
-      url = Uri.parse(
-        '$_baseUrl$_productsEndpoint',
-      ).replace(queryParameters: {'search': query});
-    } else {
-      url = Uri.parse(_baseUrl + _productsEndpoint);
+      queryParameters['search'] = query;
     }
-    print('Llamando a la API: $url');
+    if (categoryId != null) {
+      queryParameters['category__id'] = categoryId.toString();
+    }
+    if (brandId != null) {
+      queryParameters['brand__id'] = brandId.toString();
+    }
+    if (minPrice != null && minPrice > 0) {
+      queryParameters['min_price'] = minPrice.toString();
+    }
+    if (maxPrice != null && maxPrice > 0) {
+      queryParameters['max_price'] = maxPrice.toString();
+    }
+
+    // 2. Construye la URL final
+    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint').replace(
+      queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
+    );
+
+    print('Llamando a la API (getProducts): $url');
 
     try {
       final response = await http.get(url);
@@ -46,7 +72,7 @@ class ProductService {
   /// Obtiene un solo producto por su ID
   Future<Product> getProductById(int id) async {
     final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$id/');
-    print('Llamando a la API: $url');
+    print('Llamando a la API (getProductById): $url');
 
     try {
       final response = await http.get(url);
@@ -68,7 +94,7 @@ class ProductService {
   /// Obtiene las reseñas de un producto
   Future<List<Review>> getReviews(int productId) async {
     final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$productId/reviews/');
-    print('Llamando a la API: $url');
+    print('Llamando a la API (getReviews): $url');
 
     try {
       final response = await http.get(url);
@@ -123,7 +149,6 @@ class ProductService {
 
   // --- MÉTODOS DE ADMINISTRADOR (CRUD) ---
 
-  /// Prepara el cuerpo (body) del POST/PUT
   Map<String, dynamic> _prepareProductBody({
     required String name,
     required String description,
@@ -136,7 +161,7 @@ class ProductService {
     return {
       'name': name,
       'description': description,
-      'price': price.toString(), // Django espera el Decimal como String
+      'price': price.toString(),
       'stock': stock,
       'category_id': categoryId,
       'brand_id': brandId,
@@ -144,7 +169,6 @@ class ProductService {
     };
   }
 
-  /// Crea un nuevo producto.
   Future<Product> createProduct(
     String token,
     Map<String, dynamic> productData,
@@ -185,7 +209,6 @@ class ProductService {
     }
   }
 
-  /// Actualiza un producto existente.
   Future<Product> updateProduct(
     String token,
     int productId,
@@ -227,7 +250,6 @@ class ProductService {
     }
   }
 
-  /// Elimina un producto por su ID.
   Future<bool> deleteProduct(String token, int productId) async {
     final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$productId/');
     print('Eliminando producto: $url');

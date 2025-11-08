@@ -2,13 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:smartsales365/models/product_model.dart';
-// 1. Importa el NUEVO servicio de productos
 import 'package:smartsales365/services/product_service.dart';
-// 2. Importa tu widget de tarjeta de producto
 import 'package:smartsales365/widgets/product_card.dart';
+// 1. IMPORTA EL NUEVO DRAWER DE FILTROS
+import 'package:smartsales365/widgets/product_filter_drawer.dart';
 
-// Convertimos esto a un StatefulWidget para manejar el estado de
-// la carga, los errores y la lista de productos
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
 
@@ -17,60 +15,87 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen> {
-  // Instancia de nuestro nuevo servicio
   final ProductService _productService = ProductService();
 
-  // Variables para manejar el estado de la pantalla
-  bool _isLoading = true; // Controla el círculo de carga
-  String? _errorMessage; // Guarda el mensaje de error si algo falla
-  List<Product> _products = []; // La lista de productos a mostrar
+  // Estado de carga
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<Product> _products = [];
 
-  // Controlador para el campo de texto de búsqueda
+  // Controlador de búsqueda
   final TextEditingController _searchController = TextEditingController();
+
+  // 2. ESTADO PARA LOS FILTROS
+  //    Guardamos los filtros aplicados aquí
+  ProductFilters _currentFilters = ProductFilters();
+
+  // 3. GlobalKey para el Scaffold (necesario para abrir el Drawer)
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
     super.initState();
-    // Cuando la pantalla se carga por primera vez,
-    // llamamos a la API para obtener TODOS los productos.
-    _fetchProducts();
+    _fetchProducts(); // Carga inicial
   }
 
-  /// Método principal para obtener productos de la API.
-  /// Acepta una 'query' (consulta) de búsqueda opcional.
-  Future<void> _fetchProducts({String? query}) async {
-    // Limpiamos cualquier error anterior
-    _errorMessage = null;
-
-    // Mostramos el indicador de carga
+  /// Método principal para cargar/recargar productos
+  /// Ahora usa los filtros guardados
+  Future<void> _fetchProducts() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     try {
-      // Llamamos al servicio (con o sin 'query')
+      // 4. Llama al servicio con TODOS los filtros
       final List<Product> fetchedProducts = await _productService.getProducts(
-        query: query,
+        query: _searchController.text.isNotEmpty
+            ? _searchController.text
+            : null,
+        categoryId: _currentFilters.categoryId,
+        brandId: _currentFilters.brandId,
+        minPrice: _currentFilters.minPrice,
+        maxPrice: _currentFilters.maxPrice,
       );
 
-      // Si todo sale bien, actualizamos la lista de productos
       setState(() {
         _products = fetchedProducts;
-        _isLoading = false; // Ocultamos el indicador de carga
+        _isLoading = false;
       });
     } catch (e) {
-      // Si hay un error, lo guardamos para mostrarlo
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isLoading = false; // Ocultamos el indicador de carga
+        _isLoading = false;
       });
     }
   }
 
+  // 5. Callback que recibe los filtros del Drawer
+  void _onApplyFilters(ProductFilters newFilters) {
+    setState(() {
+      _currentFilters = newFilters;
+    });
+    // Vuelve a cargar los productos con los nuevos filtros
+    _fetchProducts();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // 6. Determina si hay filtros activos (para el ícono)
+    final bool hasActiveFilters =
+        _currentFilters.categoryId != null ||
+        _currentFilters.brandId != null ||
+        (_currentFilters.minPrice != null && _currentFilters.minPrice! > 0) ||
+        (_currentFilters.maxPrice != null && _currentFilters.maxPrice! > 0);
+
     return Scaffold(
-      // Usamos una AppBar para poner la barra de búsqueda
+      key: _scaffoldKey, // 7. Asigna el GlobalKey
+      // 8. Añade un 'endDrawer' (el panel que se desliza desde la derecha)
+      endDrawer: ProductFilterDrawer(
+        currentFilters: _currentFilters,
+        onApplyFilters: _onApplyFilters,
+      ),
+
       appBar: AppBar(
         title: Text(
           'Tienda',
@@ -81,9 +106,26 @@ class _CatalogScreenState extends State<CatalogScreen> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
-        // 'bottom' nos permite poner la barra de búsqueda justo debajo del título
+        actions: [
+          // 9. Botón para ABRIR el drawer de filtros
+          IconButton(
+            tooltip: 'Filtrar',
+            icon: Icon(
+              // 10. El ícono cambia si hay filtros activos
+              hasActiveFilters ? Icons.filter_list_alt : Icons.filter_list,
+              color: hasActiveFilters
+                  ? Theme.of(context).primaryColor
+                  : Colors.black54,
+            ),
+            onPressed: () {
+              // 11. Usa el key para abrir el endDrawer
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
+          ),
+        ],
+        // Barra de búsqueda (sin cambios)
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60.0), // Altura de la barra
+          preferredSize: const Size.fromHeight(60.0),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -92,40 +134,33 @@ class _CatalogScreenState extends State<CatalogScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Buscar productos... (ej: "televisor")',
+                hintText: 'Buscar productos... (ej: "tv")',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(
-                    30.0,
-                  ), // Bordes redondeados
-                  borderSide: BorderSide.none, // Sin borde
+                  borderRadius: BorderRadius.circular(30.0),
+                  borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey[200], // Color de fondo
-                contentPadding: EdgeInsets.zero, // Ajusta el padding interno
+                fillColor: Colors.grey[200],
+                contentPadding: EdgeInsets.zero,
               ),
-              // Esto se activa cuando el usuario presiona "Enter"
-              // o el botón de buscar en el teclado.
               onSubmitted: (String query) {
-                _fetchProducts(query: query);
+                // Al buscar, aplica el filtro de texto y los filtros existentes
+                _fetchProducts();
               },
             ),
           ),
         ),
       ),
-      // El cuerpo de la pantalla dependerá del estado (carga, error, éxito)
       body: _buildBody(),
     );
   }
 
-  /// Widget auxiliar que decide qué mostrar en el cuerpo
+  /// Método helper para construir el cuerpo (sin cambios)
   Widget _buildBody() {
-    // ESTADO 1: CARGANDO
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-
-    // ESTADO 2: ERROR
     if (_errorMessage != null) {
       return Center(
         child: Padding(
@@ -138,35 +173,31 @@ class _CatalogScreenState extends State<CatalogScreen> {
         ),
       );
     }
-
-    // ESTADO 3: LISTA VACÍA (después de una búsqueda sin resultados)
     if (_products.isEmpty) {
       return Center(
-        child: Text(
-          _searchController.text.isNotEmpty
-              ? 'No se encontraron productos para "${_searchController.text}"'
-              : 'No hay productos disponibles.',
-          style: const TextStyle(fontSize: 18, color: Colors.grey),
-          textAlign: TextAlign.center,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Text(
+            (_searchController.text.isNotEmpty || hasActiveFilters)
+                ? 'No se encontraron productos que coincidan con tus filtros.'
+                : 'No hay productos disponibles.',
+            style: const TextStyle(fontSize: 18, color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
-
-    // ESTADO 4: ÉXITO (Mostrar la cuadrícula de productos)
     return GridView.builder(
       padding: const EdgeInsets.all(10.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, // 2 columnas
+        crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 0.75, // Proporción de las tarjetas
+        childAspectRatio: 0.75,
       ),
       itemCount: _products.length,
       itemBuilder: (context, index) {
         final product = _products[index];
-
-        // ¡PRÓXIMO PASO!
-        // Haremos que esto sea "clicable" para ir al detalle
         return ProductCard(product: product);
       },
     );

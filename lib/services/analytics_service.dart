@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 
 class AnalyticsService {
   static const String _baseUrl =
-      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
+      'https://smartsales-backend-891739940726.us-central1.run.app/api';
 
   /// Obtiene las predicciones de ventas
   /// Requiere el token de un administrador.
