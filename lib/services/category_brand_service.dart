@@ -7,7 +7,7 @@ import 'package:smartsales365/models/brand_model.dart';
 
 class CategoryBrandService {
   static const String _baseUrl =
-      'https://smartsales-backend.onrender.com/api/products';
+      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
   static const String _categoriesUrl = '$_baseUrl/categories/';
   static const String _brandsUrl = '$_baseUrl/brands/';
 

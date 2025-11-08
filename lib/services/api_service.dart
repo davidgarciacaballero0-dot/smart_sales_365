@@ -10,8 +10,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // Para gua
 
 class ApiService {
   // La URL base de tu backend desplegado en Render
-  static const String _baseUrl = 'https://smartsales-backend.onrender.com/api';
-
+  static const String _baseUrl =
+      'https://smartsales-backend-891739940726.us-central1.run.app/api';
   // --- Endpoints de la API ---
   static const String _productsEndpoint = '/products/';
   static const String _usersEndpoint = '/users/';

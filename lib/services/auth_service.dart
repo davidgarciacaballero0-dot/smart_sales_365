@@ -6,7 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  final String _baseUrl = "https://smartsales-backend.onrender.com/api";
+  final String _baseUrl =
+      "https://smartsales-backend-891739940726.us-central1.run.app/api";
   final _secureStorage = const FlutterSecureStorage();
 
   // --- Almacenamiento de Tokens (Sin cambios) ---

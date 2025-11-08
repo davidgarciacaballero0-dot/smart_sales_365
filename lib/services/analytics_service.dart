@@ -1,167 +1,40 @@
-// lib/screens/admin/admin_dashboard_screen.dart
+// lib/services/analytics_service.dart
 
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:smartsales365/providers/auth_provider.dart';
-import 'package:smartsales365/services/analytics_service.dart';
-import 'package:fl_chart/fl_chart.dart'; // Importa el paquete de gráficos
+// ignore_for_file: avoid_print
 
-class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-  @override
-  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
-}
+class AnalyticsService {
+  static const String _baseUrl =
+      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final AnalyticsService _analyticsService = AnalyticsService();
-  late Future<Map<String, dynamic>> _predictionsFuture;
+  /// Obtiene las predicciones de ventas
+  /// Requiere el token de un administrador.
+  Future<Map<String, dynamic>> getSalesPredictions(String token) async {
+    // Llama a /api/analytics/sales-predictions/
+    final Uri url = Uri.parse('$_baseUrl/analytics/sales-predictions/');
+    print('Llamando a la API: $url');
 
-  @override
-  void initState() {
-    super.initState();
-    final String? token = context.read<AuthProvider>().accessToken;
-    if (token != null) {
-      _predictionsFuture = _analyticsService.getSalesPredictions(token);
-    } else {
-      _predictionsFuture = Future.error('Token no disponible');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Devuelve el JSON de respuesta, ej: {'predictions': [...]}
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      } else {
+        throw Exception('Error al cargar predicciones: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Panel de Administrador'),
-        actions: [
-          // Botón de Cerrar Sesión
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar Sesión',
-            onPressed: () {
-              context.read<AuthProvider>().logout();
-              // El AuthWrapper en main.dart nos redirigirá al HomeScreen (invitado)
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Dashboard de Analíticas',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 24),
-
-            // --- Tarjeta de Gráfico de Predicciones ---
-            Text(
-              'Predicciones de Ventas (Próximos 7 días)',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            _buildPredictionsChart(),
-
-            // (Aquí añadiremos más tarjetas para CRUD y otros reportes)
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Construye el gráfico de predicciones
-  Widget _buildPredictionsChart() {
-    return AspectRatio(
-      aspectRatio: 1.7,
-      child: Card(
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: FutureBuilder<Map<String, dynamic>>(
-            future: _predictionsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'Error al cargar gráfico:\n${snapshot.error}',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }
-              if (!snapshot.hasData || snapshot.data!['predictions'] == null) {
-                return const Center(child: Text('No hay datos de predicción.'));
-              }
-
-              // Extrae los datos de predicción
-              final List predictions = snapshot.data!['predictions'];
-              final List<BarChartGroupData> barGroups = [];
-
-              for (int i = 0; i < predictions.length; i++) {
-                final predictionData = predictions[i];
-                // Tu backend devuelve {'day': 'YYYY-MM-DD', 'prediction': X}
-                final double prediction = predictionData['prediction'];
-
-                barGroups.add(
-                  BarChartGroupData(
-                    x: i,
-                    barRods: [
-                      BarChartRodData(
-                        toY: prediction,
-                        color: Colors.blueGrey,
-                        width: 15,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // Retorna el gráfico de barras
-              return BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  barGroups: barGroups,
-                  titlesData: FlTitlesData(
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          // Muestra el día (1, 2, 3...)
-                          return Text('Día ${value.toInt() + 1}');
-                        },
-                        reservedSize: 30,
-                      ),
-                    ),
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                      ),
-                    ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  gridData: const FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
+  // (Aquí añadiremos más métodos como getSentimentAnalysis, etc.)
 }

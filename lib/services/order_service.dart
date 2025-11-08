@@ -7,7 +7,8 @@ import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/models/order_model.dart';
 
 class OrderService {
-  static const String _baseUrl = 'https://smartsales-backend.onrender.com/api';
+  static const String _baseUrl =
+      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
 
   /// Crea un nuevo pedido en el backend y devuelve la URL de pago de Stripe.
   /// (Este es el método que ya tenías y corregimos)

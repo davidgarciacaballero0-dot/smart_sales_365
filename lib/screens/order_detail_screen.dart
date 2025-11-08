@@ -114,8 +114,7 @@ class OrderDetailScreen extends StatelessWidget {
                     onPressed: () {
                       // 3. Construye la URL del recibo
                       final String receiptUrl =
-                          'https://smartsales-backend.onrender.com/api/orders/${order.id}/receipt/';
-
+                          'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
                       // 4. Abre la URL en la pantalla WebView
                       Navigator.push(
                         context,

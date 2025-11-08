@@ -8,7 +8,8 @@ import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/models/review_model.dart';
 
 class ProductService {
-  static const String _baseUrl = 'https://smartsales-backend.onrender.com/api';
+  static const String _baseUrl =
+      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
   static const String _productsEndpoint = '/products/';
 
   // --- MÉTODOS PÚBLICOS (CLIENTE) ---

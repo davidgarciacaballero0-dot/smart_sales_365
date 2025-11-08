@@ -3,10 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
+// 1. ¡AQUÍ ESTÁ LA CORRECCIÓN!
+//   Importa el servicio que define 'AnalyticsService'.
 import 'package:smartsales365/services/analytics_service.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:smartsales365/screens/admin/admin_product_list_screen.dart';
-// 1. IMPORTA LAS NUEVAS PANTALLAS
 import 'package:smartsales365/screens/admin/admin_category_list_screen.dart';
 import 'package:smartsales365/screens/admin/admin_brand_list_screen.dart';
 
@@ -18,6 +19,7 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  // 2. Ahora que está importado, esta línea es VÁLIDA
   final AnalyticsService _analyticsService = AnalyticsService();
   late Future<Map<String, dynamic>> _predictionsFuture;
 
@@ -75,7 +77,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Botón para gestionar productos (existente)
+            // Tarjeta de Productos
             Card(
               elevation: 1,
               child: ListTile(
@@ -94,7 +96,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
 
-            // 2. NUEVO BOTÓN PARA CATEGORÍAS
+            // Tarjeta de Categorías
             Card(
               elevation: 1,
               child: ListTile(
@@ -115,7 +117,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
 
-            // 3. NUEVO BOTÓN PARA MARCAS
+            // Tarjeta de Marcas
             Card(
               elevation: 1,
               child: ListTile(
