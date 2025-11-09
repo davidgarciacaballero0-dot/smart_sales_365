@@ -1,275 +1,164 @@
 // lib/services/product_service.dart
-// ignore_for_file: avoid_print
+
+// ignore_for_file: unused_local_variable
 
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/models/review_model.dart';
 
 class ProductService {
-  // URL base de la API (Google Cloud)
-  static const String _baseUrl =
-      'https://smartsales-backend-891739940726.us-central1.run.app/api';
+  final String _baseUrl =
+      'https://smartsales-backend-891739940726.us-central1.run.app/api/products';
 
-  // CORRECCIÓN de URL (Bug 1 y 2):
-  // Tu backend ruta /api/products/ (principal) + /products/ (router)
-  static const String _productsEndpoint = '/products/products/';
-
-  // --- MÉTODOS PÚBLICOS (CLIENTE) ---
-
-  /// Obtiene la lista de productos con filtros opcionales.
-  Future<List<Product>> getProducts({
-    String? query,
-    int? categoryId,
-    int? brandId,
-    double? minPrice,
-    double? maxPrice,
-    required String token,
-  }) async {
-    // 1. Prepara los parámetros de consulta
-    //    (Basado en el filterset_fields de tu backend 'products/views.py')
-    final Map<String, String> queryParameters = {};
-    if (query != null && query.isNotEmpty) {
-      queryParameters['search'] = query;
-    }
-    if (categoryId != null) {
-      queryParameters['category__id'] = categoryId.toString();
-    }
-    if (brandId != null) {
-      queryParameters['brand__id'] = brandId.toString();
-    }
-    if (minPrice != null && minPrice > 0) {
-      queryParameters['min_price'] = minPrice.toString();
-    }
-    if (maxPrice != null && maxPrice > 0) {
-      queryParameters['max_price'] = maxPrice.toString();
+  // --- OBTENER (GET) todos los productos (con filtros opcionales) ---
+  // CORRECCIÓN: Esta es la firma correcta
+  Future<List<Product>> getProducts(
+      {String? token, Map<String, dynamic>? filters}) async {
+    
+    // Construye la URL con los parámetros de filtro
+    Uri uri = Uri.parse('$_baseUrl/products/');
+    if (filters != null && filters.isNotEmpty) {
+      // Filtra valores nulos o vacíos antes de crear el query
+      final validFilters = Map<String, dynamic>.from(filters)
+        ..removeWhere((key, value) => value == null || value.toString().isEmpty);
+      
+      if (validFilters.isNotEmpty) {
+        uri = uri.replace(queryParameters: validFilters.map((key, value) => MapEntry(key, value.toString())));
+      }
     }
 
-    // 2. Construye la URL final
-    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint').replace(
-      queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
+    final Map<String, String> headers = {
+      'Content-Type': 'application/json',
+    };
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+      List<Product> products =
+          body.map((dynamic item) => Product.fromJson(item)).toList();
+      return products;
+    } else {
+      throw Exception(
+          'Falló al cargar productos: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  // --- OBTENER (GET) un solo producto por ID ---
+  Future<Product> getProductById(int productId, {String? token}) async {
+    final Map<String, String> headers = {
+      'Content-Type': 'application/json',
+    };
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    final response = await http.get(
+      Uri.parse('$_baseUrl/products/$productId/'),
+      headers: headers,
     );
 
-    print('Llamando a la API (getProducts): $url');
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List<dynamic> productListJson = jsonDecode(
-          utf8.decode(response.bodyBytes),
-        );
-        return productListJson.map((json) => Product.fromJson(json)).toList();
-      } else {
-        throw Exception('Error al cargar productos: ${response.statusCode}');
-      }
-    } on SocketException {
-      throw Exception('Error de conexión: Revise su conexión a internet.');
-    } catch (e) {
-      throw Exception('Error inesperado: $e');
+    if (response.statusCode == 200) {
+      return Product.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+    } else {
+      throw Exception('Falló al cargar el producto: ${response.body}');
     }
   }
 
-  /// Obtiene un solo producto por su ID
-  Future<Product> getProductById(int id, {String? token}) async {
-    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$id/');
-    print('Llamando a la API (getProductById): $url');
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final dynamic productJson = jsonDecode(utf8.decode(response.bodyBytes));
-        return Product.fromJson(productJson);
-      } else {
-        throw Exception(
-          'Error al cargar el producto $id: ${response.statusCode}',
-        );
-      }
-    } on SocketException {
-      throw Exception('Error de conexión: Revise su conexión a internet.');
-    } catch (e) {
-      throw Exception('Error inesperado: $e');
-    }
-  }
-
-  /// Obtiene las reseñas de un producto
+  // --- OBTENER (GET) reseñas de un producto ---
   Future<List<Review>> getReviews(int productId) async {
-    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$productId/reviews/');
-    print('Llamando a la API (getReviews): $url');
+    final response = await http.get(
+      Uri.parse('$_baseUrl/products/$productId/reviews/'),
+      headers: {'Content-Type': 'application/json'},
+    );
 
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List<dynamic> reviewsJson = jsonDecode(
-          utf8.decode(response.bodyBytes),
-        );
-        return reviewsJson.map((json) => Review.fromJson(json)).toList();
-      } else {
-        throw Exception('Error al cargar reseñas: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
+    if (response.statusCode == 200) {
+      List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+      List<Review> reviews =
+          body.map((dynamic item) => Review.fromJson(item)).toList();
+      return reviews;
+    } else {
+      throw Exception('Falló al cargar las reseñas');
     }
   }
 
-  /// Publica una nueva reseña
+  // --- PUBLICAR (POST) una nueva reseña ---
   Future<void> postReview({
     required String token,
     required int productId,
     required double rating,
-    required String comment,
+    String? comment,
   }) async {
-    final Uri url = Uri.parse(
-      '$_baseUrl$_productsEndpoint$productId/reviews/create/',
+    final response = await http.post(
+      Uri.parse('$_baseUrl/products/$productId/reviews/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'rating': rating,
+        'comment': comment,
+      }),
     );
-    print('Publicando reseña en: $url');
 
-    final body = jsonEncode({'rating': rating, 'comment': comment});
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
-
-      if (response.statusCode == 201) {
-        return;
-      } else {
-        throw Exception(
-          'Error al publicar reseña: ${response.statusCode} - ${response.body}',
-        );
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
+    if (response.statusCode != 201) {
+      // 201 Created
+      final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+      // Devuelve el mensaje de error específico del backend
+      throw Exception(errorData['detail'] ?? 'Error al publicar la reseña');
     }
   }
 
-  // --- MÉTODOS DE ADMINISTRADOR (CRUD) ---
-
-  Map<String, dynamic> _prepareProductBody({
-    required String name,
-    required String description,
-    required double price,
-    required int stock,
-    required int categoryId,
-    required int brandId,
-    String? imageUrl,
-  }) {
-    return {
-      'name': name,
-      'description': description,
-      'price': price.toString(),
-      'stock': stock,
-      'category_id': categoryId,
-      'brand_id': brandId,
-      if (imageUrl != null) 'image': imageUrl,
-    };
-  }
-
-  Future<Product> createProduct(
-    String token,
-    Map<String, dynamic> productData,
-  ) async {
-    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint');
-    print('Creando producto...');
-
-    final body = jsonEncode(
-      _prepareProductBody(
-        name: productData['name'],
-        description: productData['description'],
-        price: productData['price'],
-        stock: productData['stock'],
-        categoryId: productData['category_id'],
-        brandId: productData['brand_id'],
-      ),
+  // --- (ADMIN) CREAR (POST) un nuevo producto ---
+  Future<void> createProduct(String token, Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/products/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
     );
 
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
-
-      if (response.statusCode == 201) {
-        return Product.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-      } else {
-        throw Exception(
-          'Error al crear: ${response.statusCode} - ${response.body}',
-        );
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
+    if (response.statusCode != 201) {
+      throw Exception('Error al crear el producto: ${response.body}');
     }
   }
 
-  Future<Product> updateProduct(
-    String token,
-    int productId,
-    Map<String, dynamic> productData,
-  ) async {
-    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$productId/');
-    print('Actualizando producto: $url');
-
-    final body = jsonEncode(
-      _prepareProductBody(
-        name: productData['name'],
-        description: productData['description'],
-        price: productData['price'],
-        stock: productData['stock'],
-        categoryId: productData['category_id'],
-        brandId: productData['brand_id'],
-      ),
+  // --- (ADMIN) ACTUALIZAR (PUT) un producto ---
+  Future<void> updateProduct(
+      String token, int productId, Map<String, dynamic> data) async {
+    final response = await http.put(
+      Uri.parse('$_baseUrl/products/$productId/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(data),
     );
 
-    try {
-      final response = await http.put(
-        url,
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
-
-      if (response.statusCode == 200) {
-        return Product.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-      } else {
-        throw Exception(
-          'Error al actualizar: ${response.statusCode} - ${response.body}',
-        );
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar el producto: ${response.body}');
     }
   }
 
-  Future<bool> deleteProduct(String token, int productId) async {
-    final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$productId/');
-    print('Eliminando producto: $url');
+  // --- (ADMIN) ELIMINAR (DELETE) un producto ---
+  Future<void> deleteProduct(String token, int productId) async {
+    final response = await http.delete(
+      Uri.Garantía(parse('$_baseUrl/products/$productId/')),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-    try {
-      final response = await http.delete(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (response.statusCode == 204) {
-        return true;
-      } else {
-        throw Exception(
-          'Error al eliminar: ${response.statusCode} - ${response.body}',
-        );
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
+    if (response.statusCode != 204) {
+      // 204 No Content
+      throw Exception('Error al eliminar el producto: ${response.body}');
     }
   }
 }

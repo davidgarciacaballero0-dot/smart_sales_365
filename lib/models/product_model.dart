@@ -1,6 +1,5 @@
 // lib/models/product_model.dart
 
-// Importamos los otros modelos que este archivo necesita
 import 'package:smartsales365/models/brand_model.dart';
 import 'package:smartsales365/models/category_model.dart';
 
@@ -8,48 +7,61 @@ class Product {
   final int id;
   final String name;
   final String? description;
-  final double price; // Usamos double para el precio
+  final double price;
   final int stock;
-  final Category categoryDetail; // Objeto anidado de Categoría
-  final Brand? brand; // Objeto anidado de Marca (puede ser nulo)
-  final String? image; // URL de la imagen de Cloudinary
+  final String? image;
+  final Category categoryDetail;
+  final Brand? brand;
+  final double averageRating;
+  final int reviewCount;
+  // CORRECCIÓN 1/3: Campo añadido
+  final bool hasReviewed;
 
-  // Constructor
   Product({
     required this.id,
     required this.name,
     this.description,
     required this.price,
     required this.stock,
+    this.image,
     required this.categoryDetail,
     this.brand,
-    this.image,
+    required this.averageRating,
+    required this.reviewCount,
+    // CORRECCIÓN 2/3: Añadido al constructor
+    required this.hasReviewed,
   });
 
-  // Constructor 'factory' para crear un Producto desde JSON
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
       id: json['id'],
       name: json['name'],
       description: json['description'],
-
-      // El precio en Django es un Decimal, que JSON convierte a String.
-      // Debemos convertir ese String a un double en Dart.
-      price: double.parse(json['price']),
-
+      price: (json['price'] as num).toDouble(),
       stock: json['stock'],
-
-      // Tu serializador usa 'category_detail' para el objeto anidado
-      // Llamamos a Category.fromJson para construir el objeto Category.
-      categoryDetail: Category.fromJson(json['category_detail']),
-
-      // Tu serializador usa 'brand' para el objeto anidado
-      // Verificamos si no es nulo antes de intentar 'traducirlo'
-      brand: json['brand'] != null ? Brand.fromJson(json['brand']) : null,
-
-      // 'image' es un CloudinaryField, que usualmente devuelve una URL (String)
-      // En tu serializador se llama 'image'
       image: json['image'],
+      categoryDetail: Category.fromJson(json['category_detail']),
+      brand: json['brand'] != null ? Brand.fromJson(json['brand']) : null,
+      averageRating: (json['average_rating'] ?? 0.0).toDouble(),
+      reviewCount: json['review_count'] ?? 0,
+      // CORRECCIÓN 3/3: Añadido al 'fromJson'
+      // El backend lo envía como 'has_reviewed' (en getProductById)
+      // Usamos '?? false' para la lista del catálogo (que no lo envía)
+      hasReviewed: json['has_reviewed'] ?? false,
     );
+  }
+
+  // Getter para mostrar el precio formateado
+  String get formattedPrice {
+    return 'Bs. ${price.toStringAsFixed(2)}';
+  }
+
+  // Getter para la información de garantía
+  String? get warrantyInfo {
+    final months = brand?.warrantyDurationMonths;
+    if (months != null && months > 0) {
+      return '$months meses de garantía';
+    }
+    return null;
   }
 }

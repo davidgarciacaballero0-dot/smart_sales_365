@@ -1,76 +1,69 @@
 // lib/providers/auth_provider.dart
 
-// ignore_for_file: unused_import
+// ignore_for_file: unnecessary_null_comparison
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
-import 'package:smartsales365/services/api_service.dart';
-// CORRECCIÓN (Errores 1, 2, 4, 6): Importar el modelo de usuario
-import 'package:smartsales365/models/user_model.dart' as user_model;
+import 'package:smartsales365/services/auth_service.dart';
+import 'package:smartsales365/models/user_model.dart';
+import 'dart:async';
+import 'dart:convert';
 
-// ENUM para AuthStatus (usado en login_screen, main.dart, etc.)
+// Enum para el estado de autenticación
 enum AuthStatus {
-  unknown,
-  unauthenticated,
-  authenticated,
-  loading,
   uninitialized,
+  authenticated,
+  authenticating,
+  unauthenticated,
 }
 
 class AuthProvider with ChangeNotifier {
-  String? _token;
-  String? _refreshToken;
-  // CORRECCIÓN (Errores 1, 2, 4, 6): Usar la clase 'User' en lugar de 'UserProfile'
-  user_model.User? _userProfile;
+  final AuthService _authService = AuthService();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  AuthStatus _status = AuthStatus.unknown;
+  AuthStatus _status = AuthStatus.uninitialized;
+  String? _token;
+  UserProfile? _userProfile;
   String? _errorMessage;
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  final AuthService _authService = AuthService();
-
-  // --- GETTERS PÚBLICOS ---
-
-  String? get token => _token;
-  // CORRECCIÓN (Errores 1, 2, 4, 6): Usar la clase 'User'
-  user_model.User? get userProfile => _userProfile;
+  // Getters públicos
   AuthStatus get status => _status;
-
-  bool get isAuthenticated => _status == AuthStatus.authenticated;
+  String? get token => _token;
+  UserProfile? get userProfile => _userProfile;
+  String? get errorMessage => _errorMessage;
 
   bool get isAdmin {
-    // Asegurarse de que userProfile y role no sean nulos
-    return _userProfile?.role.name.toLowerCase() == 'admin';
+    // Verifica si 'role' no es nulo y si 'name' es 'Admin'
+    return _userProfile?.role != null && _userProfile?.role.name == 'Admin';
   }
-
-  String? get errorMessage => _errorMessage;
 
   AuthProvider() {
     _initAuth();
   }
 
+  /// Inicializa el provider, intentando cargar el token desde el storage
   Future<void> _initAuth() async {
-    _status = AuthStatus.loading;
+    _status = AuthStatus.authenticating;
     notifyListeners();
 
-    _token = await _storage.read(key: 'token');
-    _refreshToken = await _storage.read(key: 'refreshToken');
+    final String? storedToken = await _storage.read(key: 'authToken');
 
-    if (_token != null) {
-      try {
-        await _fetchUserProfile();
-        _status = AuthStatus.authenticated;
-      } catch (e) {
-        // El token pudo haber expirado, intentar refrescar
+    if (storedToken != null) {
+      final String? storedUser = await _storage.read(key: 'userProfile');
+      _token = storedToken;
+
+      if (storedUser != null) {
         try {
-          await _refreshTokenRequest();
+          _userProfile = UserProfile.fromJson(jsonDecode(storedUser));
           _status = AuthStatus.authenticated;
-        } catch (refreshError) {
-          // Si el refresh falla, desloguear
-          await logout(); // logout pondrá el estado en unauthenticated
+        } catch (e) {
+          // Si el perfil de usuario está corrupto, lo tratamos como no autenticado
+          await logout();
+          return;
         }
+      } else {
+        // Si hay token pero no perfil, intenta obtener el perfil
+        await _fetchProfile(storedToken);
       }
     } else {
       _status = AuthStatus.unauthenticated;
@@ -78,187 +71,89 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _fetchUserProfile() async {
-    if (_token == null) return;
-
+  /// Busca el perfil del usuario usando un token
+  Future<void> _fetchProfile(String token) async {
     try {
-      final profile = await _authService.getUserProfile(_token!);
-      _userProfile = profile;
-    } catch (e) {
-      _userProfile = null;
-      throw Exception('Failed to fetch profile: $e');
-    } finally {
-      notifyListeners();
-    }
-  }
-
-  Future<bool> login(String username, String password) async {
-    _status = AuthStatus.loading;
-    _clearError();
-    notifyListeners();
-
-    try {
-      final tokens = await _authService.login(username, password);
-      _token = tokens['access'];
-      _refreshToken = tokens['refresh'];
-
-      await _storage.write(key: 'token', value: _token);
-      await _storage.write(key: 'refreshToken', value: _refreshToken);
-
-      await _fetchUserProfile(); // Cargar perfil después de login
+      final user = await _authService.getUserProfile(token);
+      _userProfile = user;
+      _token = token;
       _status = AuthStatus.authenticated;
-      notifyListeners();
-      return true;
+
+      // Guarda el perfil de usuario en el storage
+      await _storage.write(
+        key: 'userProfile',
+        value: jsonEncode(user.toJson()),
+      );
     } catch (e) {
-      _setError(e.toString());
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<bool> register(String username, String email, String password) async {
-    _status = AuthStatus.loading;
-    _clearError();
-    notifyListeners();
-
-    try {
-      await _authService.register(username, email, password);
-      // Después de registrar, hacer login automáticamente
-      bool loggedIn = await login(username, password);
-      // El estado ya se actualiza dentro de login()
-      return loggedIn;
-    } catch (e) {
-      _setError(e.toString());
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<void> logout() async {
-    _token = null;
-    _refreshToken = null;
-    _userProfile = null;
-    _status = AuthStatus.unauthenticated;
-
-    await _storage.delete(key: 'token');
-    await _storage.delete(key: 'refreshToken');
-
-    notifyListeners();
-  }
-
-  Future<void> _refreshTokenRequest() async {
-    if (_refreshToken == null) {
-      throw Exception('No refresh token available');
-    }
-
-    try {
-      final newTokens = await _authService.refreshToken(_refreshToken!);
-      _token = newTokens['access'];
-      if (newTokens.containsKey('refresh')) {
-        _refreshToken = newTokens['refresh'];
-        await _storage.write(key: 'refreshToken', value: _refreshToken);
-      }
-      await _storage.write(key: 'token', value: _token);
-
-      await _fetchUserProfile(); // Cargar perfil con el nuevo token
-    } catch (e) {
-      // Si el refresh falla, desloguear al usuario
+      // Si el token es inválido, cerramos sesión
       await logout();
-      throw Exception('Session expired. Please log in again.');
     }
+    notifyListeners();
   }
 
-  void _setError(String message) {
-    _errorMessage = message;
-  }
-
-  void _clearError() {
+  /// Iniciar Sesión
+  Future<bool> login(String username, String password) async {
+    _status = AuthStatus.authenticating;
     _errorMessage = null;
-  }
-}
+    notifyListeners();
 
-// --- AuthService ---
-// (Esta clase está en tu auth_provider.dart, así que la mantenemos aquí)
-
-class AuthService {
-  // CORRECCIÓN (Error 3): Usar 'baseUrl' (constante global) en lugar de 'ApiService.baseUrl'
-  final String _baseUrl =
-      'https://smartsales-backend-891739940726.us-central1.run.app/api';
-
-  Future<Map<String, dynamic>> login(String username, String password) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/users/login/'), // Endpoint de login
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password}),
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Falló al iniciar sesión. Verifica tus credenciales.');
-    }
-  }
-
-  Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/users/token/refresh/'), // Endpoint de refresh
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'refresh': refreshToken}),
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to refresh token');
-    }
-  }
-
-  // CORRECCIÓN (Errores 1, 2, 4, 6): Devolver un 'user_model.User'
-  Future<user_model.User> getUserProfile(String token) async {
-    // CORRECCIÓN (Error 5): Usar 'Uri.parse' en lugar de 'Uri.para'
-    final response = await http.get(
-      Uri.parse('$_baseUrl/users/me/'), // Endpoint de perfil
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final body = jsonDecode(utf8.decode(response.bodyBytes));
-      // CORRECCIÓN (Errores 1, 2, 4, 6): Usar 'User.fromJson'
-      return user_model.User.fromJson(body);
-    } else {
-      throw Exception('Failed to load user profile');
-    }
-  }
-
-  Future<void> register(String username, String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/users/register/'), // Endpoint de registro
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'username': username,
-        'email': email,
-        'password': password,
-      }),
-    );
-
-    if (response.statusCode != 201) {
-      try {
-        final errorBody = jsonDecode(response.body);
-        String error = errorBody.toString();
-        if (errorBody.containsKey('username')) {
-          error = errorBody['username'][0];
-        } else if (errorBody.containsKey('email')) {
-          error = errorBody['email'][0];
-        }
-        throw Exception('Error de registro: $error');
-      } catch (e) {
-        throw Exception('Error al registrar usuario: ${response.statusCode}');
+    try {
+      final token = await _authService.login(username, password);
+      if (token != null) {
+        await _storage.write(key: 'authToken', value: token);
+        await _fetchProfile(token); // Busca el perfil después de login
+        return true;
+      } else {
+        _errorMessage = 'Usuario o contraseña incorrectos.';
+        _status = AuthStatus.unauthenticated;
+        notifyListeners();
+        return false;
       }
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return false;
     }
+  }
+
+  /// Registrar un nuevo usuario
+  // CORRECCIÓN: Esta es la definición correcta que usa parámetros nombrados
+  Future<bool> register({
+    required String username,
+    required String email,
+    required String password,
+  }) async {
+    _status = AuthStatus.authenticating;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final data = {'username': username, 'email': email, 'password': password};
+
+      await _authService.register(data);
+
+      // Después de registrar, intenta hacer login automáticamente
+      return await login(username, password);
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Cerrar Sesión
+  Future<void> logout() async {
+    _status = AuthStatus.unauthenticated;
+    _token = null;
+    _userProfile = null;
+    _errorMessage = null;
+
+    // Limpia el storage
+    await _storage.delete(key: 'authToken');
+    await _storage.delete(key: 'userProfile');
+
+    notifyListeners();
   }
 }

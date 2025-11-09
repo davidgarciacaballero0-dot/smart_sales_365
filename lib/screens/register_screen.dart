@@ -28,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+    // ESTA LLAMADA ES CORRECTA (usa parámetros nombrados)
     bool success = await authProvider.register(
       username: _usernameController.text,
       email: _emailController.text,

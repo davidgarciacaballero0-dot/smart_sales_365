@@ -1,6 +1,6 @@
 // lib/screens/admin/admin_user_list_screen.dart
 
-// ignore_for_file: no_leading_underscores_for_local_identifiers, use_build_context_synchronously, unnecessary_null_comparison, dead_code
+// ignore_for_file: no_leading_underscores_for_local_identifiers, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,7 +23,10 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    // Usamos addPostFrameCallback para asegurar que el context esté disponible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchData();
+    });
   }
 
   /// Carga usuarios y roles al mismo tiempo
@@ -34,8 +37,6 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
   }
 
   Future<Map<String, dynamic>> _loadData() async {
-    // CORRECCIÓN 1/3:
-    // Cambiado de 'accessToken' a 'token'
     final String? token = context.read<AuthProvider>().token;
     if (token == null) {
       throw Exception('No autorizado');
@@ -51,13 +52,11 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
     List<Role> allRoles,
     String token,
   ) async {
-    // El ID del rol actual del usuario (puede ser nulo si es un 'Cliente' sin rol asignado)
+    // CORRECCIÓN 3/4: Se quita el '?.' innecesario
     int? selectedRoleId = user.role.id;
 
     // Asegurarnos de que el rol "Cliente" (ID 1) sea una opción válida
-    // si el usuario no tiene rol o si su rol no está en la lista (poco probable)
-    if (selectedRoleId == null &&
-        allRoles.any((role) => role.name == 'Cliente')) {
+    if (allRoles.any((role) => role.name == 'Cliente')) {
       selectedRoleId = allRoles.firstWhere((r) => r.name == 'Cliente').id;
     }
 
@@ -104,12 +103,13 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
       },
     );
 
-    if (newRoleId != null && newRoleId != user.role?.id) {
+    // CORRECCIÓN (Lógica): El ID del rol del backend es 'role'
+    if (newRoleId != null && newRoleId != user.role.id) {
       try {
         await _userService.updateUserRole(
           token,
           user.id,
-          {'role_id': newRoleId} as int,
+          {'role': newRoleId}, // El backend espera 'role'
         );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -219,6 +219,8 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
       }
 
       try {
+        // Esta línea ya no dará error porque añadimos
+        // el método 'updateUser' al servicio.
         await _userService.updateUser(token, user.id, dataToUpdate);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -240,9 +242,9 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
 
   /// Muestra diálogo de confirmación y elimina un usuario
   Future<void> _deleteUser(User user, String token) async {
-    // CORRECCIÓN 2/3:
-    // (Lógica movida) Se obtiene el ID del usuario actual ANTES del diálogo.
-    final currentUserId = context.read<AuthProvider>().user?.id;
+    // CORRECCIÓN 2/4:
+    // Cambiado de '.user' a '.userProfile'
+    final currentUserId = context.read<AuthProvider>().userProfile?.id;
 
     if (user.id == currentUserId) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -302,8 +304,6 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // CORRECCIÓN 3/3:
-    // Cambiado de 'accessToken' a 'token'
     final String? token = context.watch<AuthProvider>().token;
 
     return Scaffold(
@@ -350,7 +350,8 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
       itemCount: users.length,
       itemBuilder: (context, index) {
         final user = users[index];
-        final roleName = user.role?.name ?? 'Cliente';
+        // CORRECCIÓN 4/4: Se quita el '?.' innecesario
+        final roleName = user.role.name;
         final roleColor = roleName == 'Admin'
             ? Colors.red[100]
             : Colors.blue[50];
@@ -359,7 +360,14 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           color: roleColor,
           child: ListTile(
-            leading: CircleAvatar(child: Text(user.username[0].toUpperCase())),
+            leading: CircleAvatar(
+              // Manejo de 'fullName' vacío
+              child: Text(
+                user.fullName.trim().isNotEmpty
+                    ? user.fullName[0].toUpperCase()
+                    : user.username[0].toUpperCase(),
+              ),
+            ),
             title: Text(user.username),
             subtitle: Text(user.email),
             trailing: Row(
