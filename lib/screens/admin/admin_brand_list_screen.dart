@@ -83,8 +83,17 @@ class _AdminBrandListScreenState extends State<AdminBrandListScreen> {
     );
 
     if (result != null && mounted) {
-      final String? token = context.read<AuthProvider>().accessToken;
-      if (token == null) return;
+      // NOTA: El token correcto es 'token', no 'accessToken'
+      final String? token = context.read<AuthProvider>().token;
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: No autorizado'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
       try {
         if (brand == null) {
@@ -129,8 +138,17 @@ class _AdminBrandListScreenState extends State<AdminBrandListScreen> {
         false;
 
     if (didConfirm && mounted) {
-      final String? token = context.read<AuthProvider>().accessToken;
-      if (token == null) return;
+      // NOTA: El token correcto es 'token', no 'accessToken'
+      final String? token = context.read<AuthProvider>().token;
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: No autorizado'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
       try {
         await _service.deleteBrand(token, id);
         _fetchData();
