@@ -10,6 +10,8 @@ import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/services/order_service.dart';
 import 'package:smartsales365/screens/payment_webview_screen.dart';
 
+import '../providers/tab_provider.dart';
+
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
 
@@ -29,6 +31,8 @@ class _CartScreenState extends State<CartScreen> {
     final orderService = OrderService();
 
     // 5. ¡REQUERIMIENTO CLAVE! Verifica si el usuario está logueado
+    // CORRECCIÓN 1/3 (de la lista de errores):
+    // Tu AuthProvider usa 'status'
     if (auth.status != AuthStatus.authenticated) {
       _showLoginRequiredDialog();
       return;
@@ -41,7 +45,9 @@ class _CartScreenState extends State<CartScreen> {
 
     try {
       // 7. Llama al servicio para crear el pedido
-      final String token = auth.accessToken!; // Sabemos que no es nulo
+      // CORRECCIÓN 2/3 (de la lista de errores):
+      // Cambiado de 'accessToken' a 'token'
+      final String token = auth.token!; // Sabemos que no es nulo
       final String checkoutUrl = await orderService.createOrder(token, cart);
 
       // 8. Navega a la pantalla WebView con la URL de Stripe
@@ -93,6 +99,10 @@ class _CartScreenState extends State<CartScreen> {
               Navigator.of(context).pop();
               // (Aquí podríamos navegar a la pestaña "Mi Cuenta",
               // pero por ahora solo cerramos el diálogo)
+
+              // CORRECCIÓN 3/3 (Lógica):
+              // Vamos a cambiar a la pestaña de "Mi Cuenta"
+              context.read<TabProvider>().changeTab(2);
             },
           ),
         ],
@@ -109,7 +119,13 @@ class _CartScreenState extends State<CartScreen> {
         actions: [
           TextButton(
             child: const Text('Genial'),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Lógica mejorada: Llévalo a ver sus pedidos
+              context.read<TabProvider>().changeTab(2);
+              // (El ProfileRouter lo dirigirá a UserProfileScreen
+              // donde podrá ver sus pedidos)
+            },
           ),
         ],
       ),

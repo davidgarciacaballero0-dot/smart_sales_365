@@ -86,7 +86,9 @@ class _AdminCategoryListScreenState extends State<AdminCategoryListScreen> {
     );
 
     if (result != null && mounted) {
-      final String? token = context.read<AuthProvider>().accessToken;
+      // CORRECCIÓN 1/2:
+      // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+      final String? token = context.read<AuthProvider>().token;
       if (token == null) return;
 
       try {
@@ -132,7 +134,9 @@ class _AdminCategoryListScreenState extends State<AdminCategoryListScreen> {
         false;
 
     if (didConfirm && mounted) {
-      final String? token = context.read<AuthProvider>().accessToken;
+      // CORRECCIÓN 2/2:
+      // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+      final String? token = context.read<AuthProvider>().token;
       if (token == null) return;
       try {
         await _service.deleteCategory(token, id);

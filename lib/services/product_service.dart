@@ -71,7 +71,7 @@ class ProductService {
   }
 
   /// Obtiene un solo producto por su ID
-  Future<Product> getProductById(int id) async {
+  Future<Product> getProductById(int id, {String? token}) async {
     final Uri url = Uri.parse('$_baseUrl$_productsEndpoint$id/');
     print('Llamando a la API (getProductById): $url');
 

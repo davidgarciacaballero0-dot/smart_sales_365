@@ -1,12 +1,14 @@
 // lib/screens/admin/admin_report_screen.dart
 
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+// ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/services/report_service.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
+import 'dart:io';
 
 class AdminReportScreen extends StatefulWidget {
   const AdminReportScreen({super.key});
@@ -16,150 +18,130 @@ class AdminReportScreen extends StatefulWidget {
 }
 
 class _AdminReportScreenState extends State<AdminReportScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _promptController = TextEditingController();
   final _reportService = ReportService();
-
-  String _selectedFormat = 'pdf'; // Valor por defecto
-  bool _isGenerating = false;
+  final _promptController = TextEditingController();
+  bool _isLoading = false;
+  String _statusMessage =
+      'Escribe una solicitud para generar un reporte de ventas (ej: "ventas totales del último mes agrupadas por categoría").';
 
   Future<void> _generateReport() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_promptController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, ingresa una solicitud.')),
+      );
+      return;
+    }
 
     setState(() {
-      _isGenerating = true;
+      _isLoading = true;
+      _statusMessage = 'Generando reporte...';
     });
 
-    final String? token = context.read<AuthProvider>().accessToken;
+    // CORRECCIÓN 1/1:
+    // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+    final String? token = context.read<AuthProvider>().token;
     if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error de autenticación'),
-          backgroundColor: Colors.red,
-        ),
-      );
       setState(() {
-        _isGenerating = false;
+        _isLoading = false;
+        _statusMessage = 'Error: No autorizado. Inicia sesión de nuevo.';
       });
       return;
     }
 
     try {
-      // 1. Llama al servicio
-      final String filePath = await _reportService.generateReport(
-        token: token,
-        prompt: _promptController.text,
-        format: _selectedFormat,
+      final prompt = _promptController.text;
+      final pdfBytes = await _reportService.generateReport(
+        token,
+        prompt,
+        token: '',
+        prompt: '',
+        format: '',
       );
 
-      // 2. Si tiene éxito, abre el archivo
-      final result = await OpenFilex.open(filePath);
+      // Guardar el archivo
+      final directory = await getApplicationDocumentsDirectory();
+      final path = directory.path;
+      // Añade timestamp para nombre único
+      final fileName =
+          'reporte_ia_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final file = File('$path/$fileName');
+      await file.writeAsBytes(pdfBytes);
 
+      setState(() {
+        _isLoading = false;
+        _statusMessage =
+            '¡Reporte generado! Abriendo $fileName... \n\nÚltima solicitud: "$prompt"';
+      });
+
+      // Abrir el archivo
+      final result = await OpenFilex.open(file.path);
       if (result.type != ResultType.done) {
-        throw Exception('No se pudo abrir el archivo: ${result.message}');
+        throw Exception('No se pudo abrir el archivo PDF: ${result.message}');
       }
     } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'Error al generar el reporte: $e';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
-    } finally {
-      setState(() {
-        _isGenerating = false;
-      });
     }
-  }
-
-  @override
-  void dispose() {
-    _promptController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Generador de Reportes')),
-      body: SingleChildScrollView(
+      appBar: AppBar(title: const Text('Reportes IA')),
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Generar Reporte Dinámico',
-                style: Theme.of(context).textTheme.headlineSmall,
+        child: Column(
+          children: [
+            TextField(
+              controller: _promptController,
+              decoration: const InputDecoration(
+                labelText: 'Solicitud de Reporte (IA)',
+                border: OutlineInputBorder(),
+                hintText: 'Ej: ventas totales por marca...',
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Escribe una consulta en lenguaje natural para generar un reporte. El sistema la interpretará y generará un archivo PDF o Excel.',
-                style: TextStyle(color: Colors.grey),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _isLoading ? null : _generateReport,
+              icon: const Icon(Icons.picture_as_pdf),
+              label: const Text('Generar Reporte (PDF)'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
               ),
-              const SizedBox(height: 24),
-
-              // --- Campo de Texto (Prompt) ---
-              TextFormField(
-                controller: _promptController,
-                decoration: const InputDecoration(
-                  labelText: 'Escribe tu consulta...',
-                  hintText: 'Ej: "Ventas totales del último mes por categoría"',
-                  border: OutlineInputBorder(),
+            ),
+            const SizedBox(height: 24),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _statusMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _statusMessage.startsWith('Error')
+                            ? Colors.red
+                            : Colors.black87,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
                 ),
-                maxLines: 4,
-                validator: (value) =>
-                    (value == null || value.isEmpty) ? 'Campo requerido' : null,
               ),
-              const SizedBox(height: 16),
-
-              // --- Selector de Formato ---
-              const Text(
-                'Formato de Salida:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              RadioListTile<String>(
-                title: const Text('PDF (.pdf)'),
-                value: 'pdf',
-                groupValue: _selectedFormat,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedFormat = value!;
-                  });
-                },
-              ),
-              RadioListTile<String>(
-                title: const Text('Excel (.xlsx)'),
-                value: 'excel',
-                groupValue: _selectedFormat,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedFormat = value!;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // --- Botón de Generar ---
-              ElevatedButton.icon(
-                icon: _isGenerating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.description_outlined),
-                label: Text(_isGenerating ? 'Generando...' : 'Generar Reporte'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.blueGrey[800],
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: _isGenerating ? null : _generateReport,
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );

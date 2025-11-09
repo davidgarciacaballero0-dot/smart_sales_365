@@ -11,7 +11,13 @@ import 'package:smartsales365/services/api_service.dart';
 import 'package:smartsales365/models/user_model.dart' as user_model;
 
 // ENUM para AuthStatus (usado en login_screen, main.dart, etc.)
-enum AuthStatus { unknown, unauthenticated, authenticated, loading }
+enum AuthStatus {
+  unknown,
+  unauthenticated,
+  authenticated,
+  loading,
+  uninitialized,
+}
 
 class AuthProvider with ChangeNotifier {
   String? _token;

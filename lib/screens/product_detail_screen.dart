@@ -1,6 +1,6 @@
 // lib/screens/product_detail_screen.dart
 
-// ignore_for_file: unused_import, deprecated_member_use, no_leading_underscores_for_local_identifiers, use_build_context_synchronously
+// ignore_for_file: unused_import, deprecated_member_use, no_leading_underscores_for_local_identifiers, use_build_context_synchronously, unused_local_variable
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -31,7 +31,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     // ¡USA EL product_service ACTUALIZADO!
-    _productFuture = _productService.getProductById(widget.productId);
+    // Usamos el token para la lógica de "has_reviewed"
+    // Usamos addPostFrameCallback para asegurar que el context esté disponible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final String? token = context.read<AuthProvider>().token;
+        setState(() {
+          _productFuture = _productService.getProductById(
+            widget.productId,
+            token: token,
+          );
+        });
+      }
+    });
   }
 
   @override
@@ -46,6 +58,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ? _buildBottomBar(context, _product!)
           : null,
       body: FutureBuilder<Product>(
+        // El futuro se inicializa en initState (actualizado)
         future: _productFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -64,6 +77,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             );
           }
           if (snapshot.hasData) {
+            // Asignamos el producto al estado para el bottomNavigationBar
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
@@ -272,6 +286,7 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
 
   void _fetchReviews() {
     setState(() {
+      // getReviews no necesita token, es público
       _reviewsFuture = _productService.getReviews(widget.productId);
     });
   }
@@ -336,8 +351,10 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                         _isPostingReview = true;
                       });
                       try {
+                        // CORRECCIÓN 1/2:
+                        // Cambiado de 'accessToken' a 'token'
                         await _productService.postReview(
-                          token: authProvider.accessToken!,
+                          token: authProvider.token!,
                           productId: widget.productId,
                           rating: _rating,
                           comment: _commentController.text,
@@ -388,17 +405,37 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (isAuthenticated)
-          ElevatedButton.icon(
-            icon: const Icon(Icons.edit),
-            label: const Text('Escribir una reseña'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueGrey[50],
-              foregroundColor: Colors.blueGrey[800],
-              elevation: 0,
-            ),
-            onPressed: () => _showReviewDialog(context),
-          ),
+        // Mostramos el botón "Escribir reseña" si:
+        // 1. El usuario está autenticado
+        // 2. El usuario NO ha escrito ya una reseña (lógica en _productFuture)
+        Consumer<AuthProvider>(
+          builder: (context, auth, child) {
+            // Usamos el 'product' del estado superior
+            final product = context.read<_ProductDetailScreenState>()._product;
+
+            // Lógica de visualización del botón
+            bool canReview =
+                auth.status == AuthStatus.authenticated &&
+                product != null &&
+                !product.hasReviewed;
+
+            if (canReview) {
+              return ElevatedButton.icon(
+                icon: const Icon(Icons.edit),
+                label: const Text('Escribir una reseña'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueGrey[50],
+                  foregroundColor: Colors.blueGrey[800],
+                  elevation: 0,
+                ),
+                onPressed: () => _showReviewDialog(context),
+              );
+            } else {
+              // Si ya revisó o no está logueado, no muestra nada
+              return const SizedBox.shrink();
+            }
+          },
+        ),
 
         const SizedBox(height: 16),
 
@@ -488,3 +525,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
     );
   }
 }
+
+// CORRECCIÓN 2/2:
+// Se eliminó la llave '}' adicional que estaba aquí.

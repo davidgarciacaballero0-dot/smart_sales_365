@@ -98,7 +98,9 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
       _isSaving = true;
     });
 
-    final String? token = context.read<AuthProvider>().accessToken;
+    // CORRECCIÓN 1/1:
+    // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+    final String? token = context.read<AuthProvider>().token;
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

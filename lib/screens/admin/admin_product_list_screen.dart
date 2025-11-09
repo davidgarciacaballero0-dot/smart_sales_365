@@ -6,9 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
-import 'package:smartsales365/services/product_service.dart';
-// 1. IMPORTA LA NUEVA PANTALLA DE FORMULARIO
 import 'package:smartsales365/screens/admin/admin_product_form_screen.dart';
+import 'package:smartsales365/services/product_service.dart';
 
 class AdminProductListScreen extends StatefulWidget {
   const AdminProductListScreen({super.key});
@@ -27,30 +26,33 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
     _fetchProducts();
   }
 
+  /// Carga o recarga la lista de productos
   void _fetchProducts() {
     setState(() {
+      // Llama al servicio para obtener productos.
+      // A diferencia del CRUD de marcas/categorías, este no requiere token
+      // porque es el mismo endpoint que usa el cliente.
       _productsFuture = _productService.getProducts(token: '');
     });
   }
 
-  /// Navega al formulario (para crear o editar)
+  /// Navega al formulario para crear o editar un producto
   Future<void> _navigateToForm({Product? product}) async {
-    // 2. Navega al formulario y ESPERA una respuesta
-    final result = await Navigator.push(
-      context,
+    // Navega a la pantalla del formulario
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AdminProductFormScreen(product: product),
       ),
     );
 
-    // 3. Si el formulario devolvió 'true' (o sea, si se guardó algo),
-    //    refresca la lista de productos.
+    // Si el formulario regresó 'true', significa que se guardó algo
+    // y debemos refrescar la lista.
     if (result == true) {
       _fetchProducts();
     }
   }
 
-  /// Maneja la eliminación de un producto
+  /// Muestra diálogo de confirmación y elimina un producto
   Future<void> _deleteProduct(int productId) async {
     final bool didConfirm =
         await showDialog(
@@ -58,7 +60,7 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Confirmar Eliminación'),
             content: const Text(
-              '¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer.',
+              '¿Estás seguro de que quieres eliminar este producto?',
             ),
             actions: [
               TextButton(
@@ -78,11 +80,13 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
         false;
 
     if (didConfirm && mounted) {
-      final String? token = context.read<AuthProvider>().accessToken;
+      // CORRECCIÓN 1/1:
+      // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+      final String? token = context.read<AuthProvider>().token;
       if (token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Error: Token no encontrado'),
+            content: Text('Error: No autorizado'),
             backgroundColor: Colors.red,
           ),
         );
@@ -93,11 +97,11 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
         await _productService.deleteProduct(token, productId);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Producto eliminado exitosamente'),
+            content: Text('Producto eliminado'),
             backgroundColor: Colors.green,
           ),
         );
-        _fetchProducts();
+        _fetchProducts(); // Refresca la lista
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -115,14 +119,15 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
       appBar: AppBar(
         title: const Text('Gestionar Productos'),
         actions: [
-          // 4. Conecta el botón "Añadir"
+          // Botón para refrescar
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Añadir Producto',
-            onPressed: () {
-              // Llama a la navegación sin producto (modo "Crear")
-              _navigateToForm();
-            },
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchProducts,
+          ),
+          // Botón para crear nuevo producto
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => _navigateToForm(),
           ),
         ],
       ),
@@ -133,58 +138,60 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error al cargar productos:\n${snapshot.error}',
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No hay productos.'));
+          final products = snapshot.data ?? [];
+          if (products.isEmpty) {
+            return const Center(child: Text('No se encontraron productos.'));
           }
-
-          final products = snapshot.data!;
-
-          return ListView.builder(
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: (product.image != null)
-                      ? NetworkImage(product.image!)
-                      : null,
-                  child: (product.image == null)
-                      ? const Icon(Icons.inventory_2)
-                      : null,
-                ),
-                title: Text(product.name),
-                subtitle: Text(
-                  'Stock: ${product.stock} | Precio: Bs. ${product.price}',
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 5. Conecta el botón "Editar"
-                    IconButton(
-                      icon: Icon(Icons.edit, color: Colors.blueGrey[700]),
-                      onPressed: () {
-                        // Llama a la navegación CON producto (modo "Editar")
-                        _navigateToForm(product: product);
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.redAccent),
-                      onPressed: () => _deleteProduct(product.id),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
+          return _buildProductListView(products);
         },
       ),
+    );
+  }
+
+  /// Widget que construye la lista de productos
+  Widget _buildProductListView(List<Product> products) {
+    return ListView.builder(
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        final product = products[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: ListTile(
+            leading: product.image != null
+                ? Image.network(
+                    product.image!,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    // Manejo de error si la imagen no carga
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.image_not_supported, size: 50),
+                  )
+                : const Icon(Icons.shopping_bag, size: 50),
+            title: Text(product.name),
+            subtitle: Text(
+              'Bs. ${product.price.toStringAsFixed(2)} - Stock: ${product.stock}',
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Botón Editar
+                IconButton(
+                  icon: Icon(Icons.edit, color: Colors.blueGrey[700]),
+                  onPressed: () => _navigateToForm(product: product),
+                ),
+                // Botón Eliminar
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.redAccent),
+                  onPressed: () => _deleteProduct(product.id),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

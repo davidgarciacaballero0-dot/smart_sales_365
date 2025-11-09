@@ -84,7 +84,8 @@ class _AdminBrandListScreenState extends State<AdminBrandListScreen> {
 
     if (result != null && mounted) {
       // CORRECCIÓN 1/2:
-      final String? token = context.read<AuthProvider>().accessToken;
+      // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+      final String? token = context.read<AuthProvider>().token;
       if (token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -139,7 +140,8 @@ class _AdminBrandListScreenState extends State<AdminBrandListScreen> {
 
     if (didConfirm && mounted) {
       // CORRECCIÓN 2/2:
-      final String? token = context.read<AuthProvider>().accessToken;
+      // Cambiado de 'accessToken' a 'token' para que coincida con tu AuthProvider
+      final String? token = context.read<AuthProvider>().token;
       if (token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

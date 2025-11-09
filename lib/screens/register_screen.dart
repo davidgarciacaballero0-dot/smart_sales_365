@@ -1,3 +1,7 @@
+// lib/screens/register_screen.dart
+
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
@@ -31,13 +35,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Registro exitoso! Por favor, inicia sesión.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.of(context).pop(); // Vuelve a la pantalla de Login
+      // Si el registro y el login automático fueron exitosos,
+      // el AuthWrapper se encargará de redirigir
+      // Cerramos la pantalla de registro
+      Navigator.of(context).pop();
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -46,6 +47,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _passwordConfirmController.dispose();
+    super.dispose();
   }
 
   @override

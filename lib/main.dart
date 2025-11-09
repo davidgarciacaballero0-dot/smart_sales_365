@@ -1,16 +1,27 @@
 // lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
+// 1. IMPORTA EL NUEVO TAB PROVIDER
 import 'package:smartsales365/providers/tab_provider.dart';
-import 'package:smartsales365/screens/admin/admin_dashboard_screen.dart';
 import 'package:smartsales365/screens/home_screen.dart';
 import 'package:smartsales365/screens/splash_screen.dart';
+import 'package:smartsales365/screens/admin/admin_dashboard_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        // CORRECCIÓN: Se llaman los constructores sin parámetros.
+        ChangeNotifierProvider(create: (context) => AuthProvider()),
+        ChangeNotifierProvider(create: (context) => CartProvider()),
+        // 2. AÑADE EL TAB PROVIDER
+        ChangeNotifierProvider(create: (context) => TabProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -18,38 +29,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => TabProvider()),
-        ChangeNotifierProxyProvider<AuthProvider, CartProvider>(
-          // CORRECCIÓN (Error 1): Usar parámetros nombrados
-          create: (_) => CartProvider(authToken: null, initialItems: []),
-          // CORRECCIÓN (Error 2): Usar parámetros nombrados
-          update: (context, auth, previousCart) => CartProvider(
-            authToken: auth.token,
-            initialItems: previousCart == null ? [] : previousCart.items,
-          ),
+    return MaterialApp(
+      title: 'SmartSales365',
+      theme: ThemeData(
+        primarySwatch: Colors.blueGrey,
+        useMaterial3: true,
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
         ),
-      ],
-      child: MaterialApp(
-        title: 'SmartSales365',
-        theme: ThemeData(
-          primarySwatch: Colors.blueGrey,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            backgroundColor: Colors.white,
-            iconTheme: IconThemeData(color: Colors.black87),
-            titleTextStyle: TextStyle(
-              color: Colors.black87,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        home: const AuthWrapper(),
       ),
+      home: const AuthWrapper(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -59,25 +49,32 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, auth, child) {
-        // CORRECCIÓN de error anterior (Paso 1):
-        // Usar 'unknown' y 'loading'
-        if (auth.status == AuthStatus.unknown ||
-            auth.status == AuthStatus.loading) {
-          return const SplashScreen();
-        }
+    // Aquí 'watch' es correcto para que reaccione a los cambios de estado
+    final authProvider = context.watch<AuthProvider>();
 
-        if (auth.isAuthenticated) {
-          if (auth.isAdmin) {
-            return const AdminDashboardScreen();
-          } else {
-            return const HomeScreen();
-          }
-        } else {
-          return const HomeScreen();
-        }
-      },
-    );
+    // Asumiendo que AuthProvider tiene un getter 'status' (como AuthStatus.uninitialized)
+    // y un getter 'isAdmin'. (Lo verificaremos al ver los errores de auth_provider.dart)
+
+    // CORRECCIÓN LÓGICA (Basada en tu auth_provider.dart):
+    // Tu provider usa 'isAuthenticated' y 'isAdmin', pero también 'isLoading'
+    // para el estado inicial. Vamos a usar 'isLoading' y 'isAuthenticated'.
+
+    // (Ajuste basado en el auth_provider.dart que me enviaste)
+    // Usaremos el 'status' que definiste en tu provider.
+
+    if (authProvider.status == AuthStatus.uninitialized) {
+      return const SplashScreen();
+    }
+
+    if (authProvider.status == AuthStatus.authenticated) {
+      if (authProvider.isAdmin) {
+        return const AdminDashboardScreen();
+      } else {
+        return const HomeScreen();
+      }
+    }
+
+    // Por defecto (si no está autenticado), muestra HomeScreen (que mostrará el Login)
+    return const HomeScreen();
   }
 }

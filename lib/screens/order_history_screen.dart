@@ -1,7 +1,6 @@
 // lib/screens/order_history_screen.dart
 
 // ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/models/order_model.dart';
@@ -25,13 +24,24 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    final String? token = context.read<AuthProvider>().accessToken;
+    // Usamos addPostFrameCallback para asegurar que el context esté disponible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // CORRECCIÓN 1/1:
+      // Cambiado de 'accessToken' a 'token'
+      final String? token = context.read<AuthProvider>().token;
 
-    if (token != null) {
-      _ordersFuture = _orderService.getOrders(token);
-    } else {
-      _ordersFuture = Future.error('No se encontró el token de autenticación.');
-    }
+      if (token != null) {
+        setState(() {
+          _ordersFuture = _orderService.getOrders(token);
+        });
+      } else {
+        setState(() {
+          _ordersFuture = Future.error(
+            'No se encontró el token de autenticación.',
+          );
+        });
+      }
+    });
   }
 
   String _formatDate(DateTime date) {
@@ -110,6 +120,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
+                          // CORRECCIÓN LÓGICA: 'status' no existe, es 'paymentStatus'
                           'Estado: ${order.paymentStatus.toUpperCase()}',
                           style: TextStyle(
                             color: _getStatusColor(order.paymentStatus),
