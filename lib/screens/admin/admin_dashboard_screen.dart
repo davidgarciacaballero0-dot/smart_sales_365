@@ -9,7 +9,6 @@ import 'package:smartsales365/screens/admin/admin_product_list_screen.dart';
 import 'package:smartsales365/screens/admin/admin_report_screen.dart';
 import 'package:smartsales365/screens/admin/admin_user_list_screen.dart';
 
-// Convertimos el Dashboard en un StatelessWidget, ya no carga datos.
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
@@ -19,7 +18,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        // CORRECCIÓN: El nombre correcto es .userProfile
+        // CORRECCIÓN: Usar el getter .userProfile que ahora existe
         title: Text(
           'Panel de ${authProvider.userProfile?.username ?? 'Admin'}',
         ),
