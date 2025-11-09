@@ -29,7 +29,7 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
 
   void _fetchProducts() {
     setState(() {
-      _productsFuture = _productService.getProducts();
+      _productsFuture = _productService.getProducts(token: '');
     });
   }
 

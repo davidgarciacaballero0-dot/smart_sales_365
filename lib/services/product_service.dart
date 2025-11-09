@@ -25,6 +25,7 @@ class ProductService {
     int? brandId,
     double? minPrice,
     double? maxPrice,
+    required String token,
   }) async {
     // 1. Prepara los parámetros de consulta
     //    (Basado en el filterset_fields de tu backend 'products/views.py')

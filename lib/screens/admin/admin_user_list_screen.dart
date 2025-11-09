@@ -33,7 +33,9 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
   /// Carga los usuarios y roles desde la API
   Future<void> _loadData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final token = authProvider.token;
+
+    // CORRECCIÓN 1/3:
+    final token = authProvider.accessToken; // Antes: .token
 
     if (token == null) {
       if (mounted) {
@@ -223,7 +225,8 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
 
   /// Llama al servicio para eliminar un usuario
   Future<void> _deleteUser(int userId) async {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    // CORRECCIÓN 2/3:
+    final token = Provider.of<AuthProvider>(context, listen: false).accessToken;
     if (token == null) return;
 
     try {
@@ -304,7 +307,6 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                   onPressed: () {
                     Navigator.of(ctx).pop(); // Cierra el diálogo
                     _updateUserRole(user, selectedRoleId);
-                    // Aquí estaba la 'T' sobrante, ahora está corregido.
                   },
                 ),
               ],
@@ -317,7 +319,8 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
 
   /// Llama al servicio para actualizar el rol de un usuario
   Future<void> _updateUserRole(User user, int newRoleId) async {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    // CORRECCIÓN 3/3:
+    final token = Provider.of<AuthProvider>(context, listen: false).accessToken;
     if (token == null) return;
 
     // Evitar llamadas innecesarias si el rol no cambió

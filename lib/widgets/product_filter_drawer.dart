@@ -26,6 +26,9 @@ class ProductFilterDrawer extends StatefulWidget {
     super.key,
     required this.currentFilters,
     required this.onApplyFilters,
+    required List<Category> allCategories,
+    required List<Brand> allBrands,
+    required void Function() clearFilters,
   });
 
   @override

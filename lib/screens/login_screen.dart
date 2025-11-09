@@ -1,3 +1,4 @@
+// lib/screens/login_screen.dart
 // ignore_for_file: unnecessary_cast
 
 import 'package:flutter/material.dart';
@@ -105,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   builder: (context, auth, child) {
                     // Actualizado para usar el estado 'loading'
                     if (auth.status == AuthStatus.loading) {
+                      // <-- ESTO PUEDE DAR ERROR
                       return const CircularProgressIndicator();
                     }
                     return SizedBox(
