@@ -46,6 +46,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   void initState() {
     super.initState();
+    _initialDataFuture = _loadInitialData();
     // Usamos addPostFrameCallback para asegurar que el context esté disponible
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initialDataFuture = _loadInitialData();

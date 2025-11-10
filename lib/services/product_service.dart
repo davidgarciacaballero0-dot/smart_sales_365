@@ -11,7 +11,8 @@ import 'package:smartsales365/services/api_service.dart'; // Importa la clase ba
 // CORRECCIÓN: Asegúrate de que hereda de ApiService
 class ProductService extends ApiService {
   // La URL base de productos ahora se construye desde el 'baseUrl' del ApiService
-  final String _productsBaseUrl = '/products/products';
+  final String _productsBaseUrl =
+      'https://smartsales-backend-891739940726.us-central1.run.app/api';
 
   // --- OBTENER (GET) todos los productos (con filtros opcionales) ---
   Future<List<Product>> getProducts({
