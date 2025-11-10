@@ -1,155 +1,132 @@
 // lib/screens/home_screen.dart
 
+// ignore_for_file: no_leading_underscores_for_local_identifiers
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
-import 'package:smartsales365/providers/tab_provider.dart';
-// 1. IMPORTA EL CART_PROVIDER
 import 'package:smartsales365/providers/cart_provider.dart';
-import 'package:smartsales365/screens/catalog_screen.dart';
+import 'package:smartsales365/providers/tab_provider.dart';
 import 'package:smartsales365/screens/cart_screen.dart';
+import 'package:smartsales365/screens/catalog_screen.dart';
 import 'package:smartsales365/screens/login_screen.dart';
-import 'package:smartsales365/screens/order_history_screen.dart';
+import 'package:smartsales365/screens/order_history_screen.dart'; // Para el perfil
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  final List<Widget> _screens = [
-    const CatalogScreen(),
-    const CartScreen(),
-    const ProfileRouter(),
+  // Lista de widgets para las pestañas
+  static const List<Widget> _widgetOptions = <Widget>[
+    CatalogScreen(),
+    CartScreen(),
+    ProfileRouter(), // Pestaña 3 ahora es un router
   ];
 
   @override
   Widget build(BuildContext context) {
-    // Escucha al TabProvider para saber qué pestaña mostrar
+    // Escucha los cambios en el TabProvider y CartProvider
     final tabProvider = context.watch<TabProvider>();
-    // 2. ESCUCHA AL CART_PROVIDER PARA OBTENER EL CONTEO
-    final cart = context.watch<CartProvider>();
+    final cartItemCount = context.watch<CartProvider>().totalItemCount;
 
     return Scaffold(
-      body: IndexedStack(index: tabProvider.selectedIndex, children: _screens),
+      body: Center(child: _widgetOptions.elementAt(tabProvider.selectedIndex)),
       bottomNavigationBar: BottomNavigationBar(
         items: <BottomNavigationBarItem>[
-          // --- Pestaña 1: Tienda (Sin cambios) ---
           const BottomNavigationBarItem(
-            icon: Icon(Icons.storefront_outlined),
-            activeIcon: Icon(Icons.storefront),
+            icon: Icon(Icons.store),
             label: 'Tienda',
           ),
-
-          // --- 3. Pestaña 2: Carrito (ACTUALIZADA CON BADGE) ---
           BottomNavigationBarItem(
-            // Ícono normal
-            icon: Badge(
-              // Muestra el total de items (ej. 1, 2, 3...)
-              label: Text(cart.totalItemCount.toString()),
-              // Solo muestra el badge si hay más de 0 items
-              isLabelVisible: cart.totalItemCount > 0,
-              // El ícono del carrito
-              child: const Icon(Icons.shopping_cart_outlined),
-            ),
-            // Ícono activo (cuando está seleccionada)
-            activeIcon: Badge(
-              label: Text(cart.totalItemCount.toString()),
-              isLabelVisible: cart.totalItemCount > 0,
-              child: const Icon(Icons.shopping_cart),
+            // --- BADGE (CONTADOR) DEL CARRITO ---
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.shopping_cart),
+                if (cartItemCount > 0)
+                  Positioned(
+                    right: -8,
+                    top: -8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        '$cartItemCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             label: 'Carrito',
           ),
-
-          // --- Pestaña 3: Mi Cuenta (Sin cambios) ---
           const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
+            icon: Icon(Icons.person),
             label: 'Mi Cuenta',
           ),
         ],
         currentIndex: tabProvider.selectedIndex,
+        selectedItemColor: Colors.blueGrey[800],
         onTap: (index) {
+          // Cambia la pestaña usando el provider
           context.read<TabProvider>().changeTab(index);
         },
-        selectedItemColor: Colors.blueGrey[800],
-        unselectedItemColor: Colors.grey,
       ),
     );
   }
 }
 
-// La clase 'ProfileRouter' no necesita cambios
+// --- WIDGET INTERNO PARA MANEJAR LA PESTAÑA DE PERFIL ---
 class ProfileRouter extends StatelessWidget {
   const ProfileRouter({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-    if (authProvider.status == AuthStatus.authenticated) {
-      return const UserProfileScreen();
-    } else {
-      return const LoginScreen();
-    }
-  }
-}
 
-// La clase 'UserProfileScreen' no necesita cambios
-class UserProfileScreen extends StatelessWidget {
-  const UserProfileScreen({super.key});
+  void _showLoginModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Permite que el modal sea alto
+      builder: (modalContext) {
+        // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+        // Le pasamos la función 'onLoginSuccess' al LoginScreen.
+        // Usamos 'modalContext' para asegurarnos de que cerramos
+        // el modal correcto.
+        return LoginScreen(
+          onLoginSuccess: () {
+            Navigator.of(modalContext).pop();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authProvider = context.read<AuthProvider>();
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mi Perfil')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Center(
-              child: Text(
-                '¡Bienvenido!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.receipt_long),
-              label: const Text('Mis Pedidos'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                textStyle: const TextStyle(fontSize: 16),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const OrderHistoryScreen(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            const Spacer(),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.logout),
-              label: const Text('Cerrar Sesión'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[400],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                textStyle: const TextStyle(fontSize: 16),
-              ),
-              onPressed: () {
-                authProvider.logout();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    // Escucha el estado de autenticación
+    final authStatus = context.watch<AuthProvider>().status;
+
+    // 1. Si está autenticado, muestra el historial de pedidos
+    if (authStatus == AuthStatus.authenticated) {
+      return const OrderHistoryScreen();
+    }
+
+    // 2. Si no está autenticado o está 'uninitialized',
+    //    mostramos un "placeholder" y disparamos el modal de login
+    //    Usamos addPostFrameCallback para mostrar el modal
+    //    después de que el widget se haya construido.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showLoginModal(context);
+    });
+
+    // Muestra un indicador de carga mientras se abre el modal
+    return const Center(child: CircularProgressIndicator());
   }
 }

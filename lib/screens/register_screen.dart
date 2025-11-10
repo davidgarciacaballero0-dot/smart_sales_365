@@ -28,7 +28,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    // ESTA LLAMADA ES CORRECTA (usa parámetros nombrados)
+    // Esta llamada usa parámetros nombrados, lo cual es correcto
+    // gracias a las correcciones que hicimos en auth_provider.dart
     bool success = await authProvider.register(
       username: _usernameController.text,
       email: _emailController.text,
@@ -97,7 +98,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Ingrese un email';
                     }
-                    if (!value.contains('@')) {
+                    // Validación simple de email
+                    if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
                       return 'Ingrese un email válido';
                     }
                     return null;
@@ -128,7 +130,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       return 'Ingrese una contraseña';
                     }
                     if (value.length < 8) {
-                      // Django por defecto pide 8
+                      // Coincide con la validación del backend de Django
                       return 'Debe tener al menos 8 caracteres';
                     }
                     return null;
@@ -165,7 +167,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 30),
                 Consumer<AuthProvider>(
                   builder: (context, auth, child) {
-                    if (auth.status == AuthStatus.loading) {
+                    // CORRECCIÓN:
+                    // Cambiado de 'loading' a 'authenticating'
+                    if (auth.status == AuthStatus.authenticating) {
                       return const CircularProgressIndicator();
                     }
                     return SizedBox(
