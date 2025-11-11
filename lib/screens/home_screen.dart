@@ -1,6 +1,6 @@
 // lib/screens/home_screen.dart
 
-// ignore_for_file: no_leading_underscores_for_local_identifiers
+// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_import
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,17 +16,17 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   // Lista de widgets para las pestañas
-  static const List<Widget> _widgetOptions = <Widget>[
-    CatalogScreen(),
+  static final List<Widget> _widgetOptions = <Widget>[
+    const CatalogScreen(),
     CartScreen(),
-    ProfileRouter(), // Pestaña 3 ahora es un router
+    const ProfileRouter(), // Pestaña 3 ahora es un router
   ];
 
   @override
   Widget build(BuildContext context) {
     // Escucha los cambios en el TabProvider y CartProvider
     final tabProvider = context.watch<TabProvider>();
-    final cartItemCount = context.watch<CartProvider>().totalItemCount;
+    final cartItemCount = context.watch<CartProvider>().itemCount;
 
     return Scaffold(
       body: Center(child: _widgetOptions.elementAt(tabProvider.selectedIndex)),

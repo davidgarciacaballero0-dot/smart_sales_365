@@ -115,15 +115,17 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: _getStatusColor(
-                            order.paymentStatus,
+                            order.paymentStatus ?? 'pendiente',
                           ).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          // CORRECCIÓN LÓGICA: 'status' no existe, es 'paymentStatus'
-                          'Estado: ${order.paymentStatus.toUpperCase()}',
+                          // CORRECCIÓN: Manejar null con operador ??
+                          'Estado: ${(order.paymentStatus ?? 'pendiente').toUpperCase()}',
                           style: TextStyle(
-                            color: _getStatusColor(order.paymentStatus),
+                            color: _getStatusColor(
+                              order.paymentStatus ?? 'pendiente',
+                            ),
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),

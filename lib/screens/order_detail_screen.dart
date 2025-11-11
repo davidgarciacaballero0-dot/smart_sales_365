@@ -40,8 +40,9 @@ class OrderDetailScreen extends StatelessWidget {
                       _buildSummaryRow('Fecha:', _formatDate(order.createdAt)),
                       _buildSummaryRow(
                         'Estado del Pago:',
-                        order.paymentStatus.toUpperCase(),
-                        statusColor: order.paymentStatus == 'completed'
+                        (order.paymentStatus ?? 'pendiente').toUpperCase(),
+                        statusColor:
+                            (order.paymentStatus ?? 'pendiente') == 'completed'
                             ? Colors.green
                             : Colors.orange,
                       ),

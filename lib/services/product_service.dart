@@ -5,22 +5,35 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:smartsales365/models/product_model.dart';
+import 'package:smartsales365/models/products_response_model.dart';
 import 'package:smartsales365/models/review_model.dart';
 import 'package:smartsales365/services/api_service.dart';
 
 class ProductService extends ApiService {
   final String _productsPath = 'products';
 
-  // --- OBTENER (GET) todos los productos (con filtros opcionales) ---
-  Future<List<Product>> getProducts({
+  // --- OBTENER (GET) productos con soporte de paginación ---
+  /// Backend puede retornar dos formatos:
+  /// 1. Array directo: [{...}, {...}]
+  /// 2. Paginado: {count: X, next: URL, previous: URL, results: [{...}]}
+  ///
+  /// Este método maneja ambos formatos automáticamente
+  Future<ProductsResponse> getProducts({
     String? token,
     Map<String, dynamic>? filters,
+    int page = 1,
   }) async {
+    // Combinar filtros con paginación
+    final finalFilters = filters ?? {};
+    if (page > 1) {
+      finalFilters['page'] = page.toString();
+    }
+
     Uri uri = Uri.parse('$baseUrl/$_productsPath/');
 
-    if (filters != null && filters.isNotEmpty) {
+    if (finalFilters.isNotEmpty) {
       final validFilters = Map<String, dynamic>.from(
-        filters,
+        finalFilters,
       )..removeWhere((key, value) => value == null || value.toString().isEmpty);
 
       if (validFilters.isNotEmpty) {
@@ -33,6 +46,7 @@ class ProductService extends ApiService {
     }
 
     print('🔍 URL de productos: $uri');
+    print('🔍 Página: $page');
 
     final Map<String, String> headers = {'Content-Type': 'application/json'};
     if (token != null) {
@@ -40,26 +54,45 @@ class ProductService extends ApiService {
     }
 
     try {
-      final response = await http.get(uri, headers: headers);
+      final response = await http
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 15));
 
       print('📡 Status Code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
-        List<Product> products = body
-            .map((dynamic item) => Product.fromJson(item))
-            .toList();
-        print('✅ ${products.length} productos cargados');
-        return products;
+        final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+
+        // Usar ProductsResponse.fromJson que maneja ambos formatos
+        final productsResponse = ProductsResponse.fromJson(jsonData);
+
+        print('✅ ${productsResponse.products.length} productos cargados');
+        if (productsResponse.isPaginated) {
+          print(
+            '📄 Total: ${productsResponse.count}, Tiene siguiente: ${productsResponse.hasNextPage}',
+          );
+        }
+
+        return productsResponse;
       } else {
-        throw Exception(
-          'Falló al cargar productos: ${response.statusCode} ${response.body}',
-        );
+        print('❌ Respuesta de error: ${response.body}');
+        throw Exception('Falló al cargar productos: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error al cargar productos: $e');
       rethrow;
     }
+  }
+
+  /// Método legacy para compatibilidad con código existente
+  /// Retorna solo la lista de productos sin metadata de paginación
+  @Deprecated('Usar getProducts() que retorna ProductsResponse')
+  Future<List<Product>> getProductsList({
+    String? token,
+    Map<String, dynamic>? filters,
+  }) async {
+    final response = await getProducts(token: token, filters: filters);
+    return response.products;
   }
 
   // --- OBTENER (GET) un solo producto por ID ---

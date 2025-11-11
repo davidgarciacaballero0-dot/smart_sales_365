@@ -1,57 +1,202 @@
 // lib/providers/cart_provider.dart
 
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
-import 'package:smartsales365/models/cart_item_model.dart';
-import 'package:smartsales365/models/product_model.dart';
+import 'package:smartsales365/models/cart_model.dart';
+import 'package:smartsales365/services/cart_service.dart';
 
+/// Provider del carrito que se sincroniza con el backend
+/// Este reemplaza al CartProvider local antiguo
+///
+/// Características:
+/// - Sincronización automática con backend
+/// - Carrito persistente entre sesiones
+/// - Validación de stock en tiempo real
+/// - Cálculo de totales desde backend
 class CartProvider with ChangeNotifier {
-  // Lista privada de ítems en el carrito
-  final Map<int, CartItem> _items = {};
+  final CartService _cartService = CartService();
 
-  // Forma pública de obtener los ítems
-  List<CartItem> get items => _items.values.toList();
+  Cart? _cart;
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  // Obtener el número total de productos (sumando cantidades)
-  int get totalItemCount {
-    int total = 0;
-    _items.forEach((key, cartItem) {
-      total += cartItem.quantity;
-    });
-    return total;
+  // Getters
+  Cart? get cart => _cart;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  bool get hasItems => _cart != null && _cart!.isNotEmpty;
+  int get itemCount => _cart?.itemsCount ?? 0;
+  double get totalPrice => _cart?.totalPrice ?? 0.0;
+
+  /// Carga el carrito desde el backend
+  /// El backend automáticamente crea el carrito si no existe
+  Future<void> loadCart(String token) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      print('🛒 Cargando carrito desde backend...');
+      _cart = await _cartService.getCart(token);
+      print('✅ Carrito cargado: ${_cart!.items.length} items');
+      print('💰 Total: \$${_cart!.totalPrice}');
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Error al cargar carrito: $e');
+      _errorMessage = 'Error al cargar el carrito: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  // Obtener el precio total
-  double get totalPrice {
-    double total = 0.0;
-    _items.forEach((key, cartItem) {
-      total += cartItem.product.price * cartItem.quantity;
-    });
-    return total;
+  /// Añade un producto al carrito
+  /// Si ya existe, incrementa su cantidad
+  Future<bool> addToCart({
+    required String token,
+    required int productId,
+    int quantity = 1,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      print('➕ Añadiendo producto $productId (cantidad: $quantity)');
+      _cart = await _cartService.addToCart(
+        token: token,
+        productId: productId,
+        quantity: quantity,
+      );
+      print('✅ Producto añadido. Total items: ${_cart!.itemsCount}');
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('❌ Error al añadir producto: $e');
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
-  /// Método para AÑADIR un producto al carrito
-  void addToCart(Product product) {
-    if (_items.containsKey(product.id)) {
-      // Si el producto ya está en el carrito, solo incrementa la cantidad
-      _items[product.id]!.increment();
-    } else {
-      // Si es un producto nuevo, lo añade al mapa
-      _items[product.id] = CartItem(product: product, quantity: 1);
+  /// Actualiza la cantidad de un item en el carrito
+  Future<bool> updateQuantity({
+    required String token,
+    required int itemId,
+    required int quantity,
+  }) async {
+    if (quantity < 0) {
+      _errorMessage = 'La cantidad no puede ser negativa';
+      notifyListeners();
+      return false;
     }
 
-    // Notifica a todos los widgets que están "escuchando" que el carrito cambió
+    _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
+
+    try {
+      print('🔄 Actualizando item $itemId a cantidad $quantity');
+      _cart = await _cartService.updateCartItem(
+        token: token,
+        itemId: itemId,
+        quantity: quantity,
+      );
+      print('✅ Cantidad actualizada. Total: \$${_cart!.totalPrice}');
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('❌ Error al actualizar cantidad: $e');
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
   }
 
-  /// Método para REMOVER un producto del carrito
-  void removeFromCart(int productId) {
-    _items.remove(productId);
-    notifyListeners();
+  /// Incrementa la cantidad de un item en 1
+  Future<bool> incrementItem({
+    required String token,
+    required int itemId,
+    required int currentQuantity,
+  }) async {
+    return await updateQuantity(
+      token: token,
+      itemId: itemId,
+      quantity: currentQuantity + 1,
+    );
   }
 
-  /// Método para VACIAR el carrito (ej. después de una compra)
-  void clearCart() {
-    _items.clear();
+  /// Decrementa la cantidad de un item en 1
+  /// Si llega a 0, elimina el item
+  Future<bool> decrementItem({
+    required String token,
+    required int itemId,
+    required int currentQuantity,
+  }) async {
+    if (currentQuantity <= 1) {
+      return await removeItem(token: token, itemId: itemId);
+    }
+    return await updateQuantity(
+      token: token,
+      itemId: itemId,
+      quantity: currentQuantity - 1,
+    );
+  }
+
+  /// Elimina un item del carrito
+  Future<bool> removeItem({required String token, required int itemId}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      print('🗑️ Eliminando item $itemId del carrito');
+      _cart = await _cartService.removeFromCart(token: token, itemId: itemId);
+      print('✅ Item eliminado. Items restantes: ${_cart!.itemsCount}');
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('❌ Error al eliminar item: $e');
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Vacía completamente el carrito
+  Future<bool> clearCart(String token) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      print('🧹 Vaciando carrito...');
+      _cart = await _cartService.clearCart(token);
+      print('✅ Carrito vaciado');
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('❌ Error al vaciar carrito: $e');
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Limpia el estado local (útil al hacer logout)
+  void reset() {
+    _cart = null;
+    _isLoading = false;
+    _errorMessage = null;
     notifyListeners();
   }
 }

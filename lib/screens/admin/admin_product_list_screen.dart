@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/models/product_model.dart';
+import 'package:smartsales365/models/products_response_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/screens/admin/admin_product_form_screen.dart';
 import 'package:smartsales365/services/product_service.dart';
@@ -18,7 +19,7 @@ class AdminProductListScreen extends StatefulWidget {
 
 class _AdminProductListScreenState extends State<AdminProductListScreen> {
   final ProductService _productService = ProductService();
-  late Future<List<Product>> _productsFuture;
+  late Future<ProductsResponse> _productsFuture;
 
   @override
   void initState() {
@@ -131,7 +132,7 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Product>>(
+      body: FutureBuilder<ProductsResponse>(
         future: _productsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -140,11 +141,11 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          final products = snapshot.data ?? [];
-          if (products.isEmpty) {
+          final productsResponse = snapshot.data;
+          if (productsResponse == null || productsResponse.products.isEmpty) {
             return const Center(child: Text('No se encontraron productos.'));
           }
-          return _buildProductListView(products);
+          return _buildProductListView(productsResponse.products);
         },
       ),
     );

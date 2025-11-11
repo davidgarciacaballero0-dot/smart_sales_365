@@ -22,8 +22,7 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  late Future<Product>
-  _productFuture; // Siempre se inicializa en initState (fallback incluido)
+  late Future<Product> _productFuture;
   final ProductService _productService = ProductService();
   Product? _product;
 
@@ -143,7 +142,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         const SizedBox(height: 16),
                         _ProductReviewsSection(
                           productId: product.id,
-                          hasReviewed: product.hasReviewed ?? false,
+                          hasReviewed:
+                              false, // TODO: Implementar lógica desde backend
                         ),
                       ],
                     ),
@@ -182,22 +182,50 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             borderRadius: BorderRadius.circular(30),
           ),
         ),
-        onPressed: () {
+        onPressed: () async {
           final cart = context.read<CartProvider>();
+          final auth = context.read<AuthProvider>();
           final tab = context.read<TabProvider>();
 
-          cart.addToCart(product);
+          // Verificar autenticación
+          if (auth.token == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Debes iniciar sesión para añadir al carrito'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('¡"${product.name}" añadido al carrito!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 1),
-            ),
+          // Añadir al carrito (backend)
+          final success = await cart.addToCart(
+            token: auth.token!,
+            productId: product.id,
+            quantity: 1,
           );
 
-          tab.changeTab(1);
-          Navigator.of(context).pop();
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('¡"${product.name}" añadido al carrito!'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+
+            tab.changeTab(1);
+            Navigator.of(context).pop();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  cart.errorMessage ?? 'Error al añadir al carrito',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         },
         child: const Text(
           'Añadir al Carrito e Ir',

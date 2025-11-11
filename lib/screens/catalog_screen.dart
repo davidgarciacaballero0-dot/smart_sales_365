@@ -1,11 +1,13 @@
 // lib/screens/catalog_screen.dart
 
-// ignore_for_file: no_leading_underscores_for_local_identifiers
+// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_import
 
 // CORRECCIÓN 1: Se eliminó la importación de 'package_wrapper.dart'
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/models/product_model.dart';
+import 'package:smartsales365/models/products_response_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/services/product_service.dart';
 import 'package:smartsales365/widgets/product_card.dart';
@@ -30,10 +32,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   late Future<Map<String, dynamic>> _initialDataFuture;
+  bool _isInitialized = false;
 
   // CORRECCIÓN: Se usa la clase ProductFilters en lugar de un Map
   ProductFilters _currentFilters = ProductFilters();
   String _searchQuery = '';
+
+  // Paginación
+  int _currentPage = 1;
+  bool _hasMorePages = false;
+  bool _isLoadingMore = false;
+  List<Product> _allProducts = []; // Acumulador de productos
+
+  // Timer para debounce de búsqueda
+  Timer? _debounceTimer;
 
   // Getter para saber si hay filtros activos
   bool get _hasActiveFilters {
@@ -46,10 +58,21 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   void initState() {
     super.initState();
-    _initialDataFuture = _loadInitialData();
-    // Usamos addPostFrameCallback para asegurar que el context esté disponible
+    // Inicializar con datos vacíos temporalmente
+    _initialDataFuture = Future.value({
+      'products': <Product>[],
+      'categories': <Category>[],
+      'brands': <Brand>[],
+    });
+
+    // Cargar datos reales después de que el contexto esté disponible
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initialDataFuture = _loadInitialData();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _initialDataFuture = _loadInitialData();
+        });
+      }
     });
   }
 
@@ -75,17 +98,33 @@ class _CatalogScreenState extends State<CatalogScreen> {
       // Limpiamos nulos o vacíos
       apiFilters.removeWhere((key, value) => value == null || value.isEmpty);
 
-      // CORRECCIÓN: Pasamos los parámetros nombrados correctamente
-      final products = await _productService.getProducts(
+      // CORRECCIÓN: Usamos ProductsResponse con paginación
+      final productsResponse = await _productService.getProducts(
         token: token,
         filters: apiFilters,
+        page: 1, // Primera página
       );
+
+      // Resetear estado de paginación
+      _currentPage = 1;
+      _hasMorePages = productsResponse.hasNextPage;
+      _allProducts = productsResponse.products;
 
       // Cargamos los datos para el drawer
       final categories = await _categoryBrandService.getCategories();
       final brands = await _categoryBrandService.getBrands();
 
-      return {'products': products, 'categories': categories, 'brands': brands};
+      debugPrint('✅ Products loaded: ${productsResponse.products.length}');
+      debugPrint('📄 Has more pages: ${productsResponse.hasNextPage}');
+      debugPrint('📊 Total count: ${productsResponse.count}');
+      debugPrint('✅ Categories loaded: ${categories.length}');
+      debugPrint('✅ Brands loaded: ${brands.length}');
+
+      return {
+        'products': productsResponse.products,
+        'categories': categories,
+        'brands': brands,
+      };
     } catch (e) {
       rethrow;
     }
@@ -118,77 +157,117 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   /// Maneja el cambio en la barra de búsqueda (con debounce)
   void _onSearchChanged(String query) {
+    // Cancelar el timer anterior si existe
+    _debounceTimer?.cancel();
+
+    // Actualizar el query inmediatamente en el estado local
     setState(() {
       _searchQuery = query;
     });
-    // (Aquí se podría añadir un debounce timer)
-    _reloadData();
+
+    // Crear nuevo timer que se ejecutará después de 500ms sin cambios
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _reloadData();
+    });
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey, // Asigna la key al Scaffold
-      appBar: _buildAppBar(),
-      // Usamos FutureBuilder para asegurar que los datos del drawer estén listos
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: _initialDataFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _initialDataFuture,
+      builder: (context, snapshot) {
+        // Mostrar loading mientras inicializa o está esperando
+        if (!_isInitialized ||
+            snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            key: _scaffoldKey,
+            appBar: _buildAppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // Mostrar error si falla
+        if (snapshot.hasError) {
+          return Scaffold(
+            key: _scaffoldKey,
+            appBar: _buildAppBar(),
+            body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Error al cargar productos:\n${snapshot.error}',
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error al cargar productos:\n${snapshot.error}',
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _reloadData,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
                 ),
               ),
-            );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: Text('No se encontraron datos.'));
-          }
-
-          final List<Product> products = snapshot.data!['products'];
-          final List<Category> categories = snapshot.data!['categories'];
-          final List<Brand> brands = snapshot.data!['brands'];
-
-          // Ahora que tenemos los datos, construimos el Scaffold real
-          return Scaffold(
-            // CORRECCIÓN: Se usa 'endDrawer' para el filtro (lado derecho)
-            endDrawer: ProductFilterDrawer(
-              // CORRECCIÓN: Parámetros requeridos añadidos
-              allCategories: categories,
-              allBrands: brands,
-              currentFilters: _currentFilters,
-              onApplyFilters: _onApplyFilters,
-              clearFilters: _clearFilters,
-            ),
-            body: Column(
-              children: [
-                _buildSearchField(),
-                Expanded(
-                  child: products.isEmpty
-                      ? const Center(
-                          child: Text('No se encontraron productos.'),
-                        )
-                      : _buildProductGrid(products),
-                ),
-              ],
             ),
           );
-        },
-      ),
+        }
+
+        // Validar que hay datos
+        if (!snapshot.hasData) {
+          return Scaffold(
+            key: _scaffoldKey,
+            appBar: _buildAppBar(),
+            body: const Center(child: Text('No se encontraron datos.')),
+          );
+        }
+
+        final List<Product> products = snapshot.data!['products'];
+        final List<Category> categories = snapshot.data!['categories'];
+        final List<Brand> brands = snapshot.data!['brands'];
+
+        // Construir UI principal con UN SOLO Scaffold
+        return Scaffold(
+          key: _scaffoldKey,
+          appBar: _buildAppBar(),
+          endDrawer: ProductFilterDrawer(
+            allCategories: categories,
+            allBrands: brands,
+            currentFilters: _currentFilters,
+            onApplyFilters: _onApplyFilters,
+            clearFilters: _clearFilters,
+          ),
+          body: Column(
+            children: [
+              _buildSearchField(),
+              Expanded(
+                child: products.isEmpty
+                    ? const Center(child: Text('No se encontraron productos.'))
+                    : Column(
+                        children: [
+                          Expanded(child: _buildProductGrid(products)),
+                          if (_hasMorePages) _buildLoadMoreButton(),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -248,5 +327,99 @@ class _CatalogScreenState extends State<CatalogScreen> {
         return ProductCard(product: product);
       },
     );
+  }
+
+  /// Botón "Cargar más" para paginación
+  Widget _buildLoadMoreButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16.0),
+      child: _isLoadingMore
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          : ElevatedButton.icon(
+              onPressed: _loadMoreProducts,
+              icon: const Icon(Icons.add),
+              label: const Text('Cargar más productos'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+    );
+  }
+
+  /// Carga la siguiente página de productos
+  Future<void> _loadMoreProducts() async {
+    if (_isLoadingMore || !_hasMorePages) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final String? token = context.read<AuthProvider>().token;
+
+      // Construir filtros API
+      final Map<String, dynamic> apiFilters = {'search': _searchQuery};
+      if (_currentFilters.categoryId != null) {
+        apiFilters['category__id'] = _currentFilters.categoryId.toString();
+      }
+      if (_currentFilters.brandId != null) {
+        apiFilters['brand__id'] = _currentFilters.brandId.toString();
+      }
+      if (_currentFilters.minPrice != null) {
+        apiFilters['min_price'] = _currentFilters.minPrice.toString();
+      }
+      if (_currentFilters.maxPrice != null) {
+        apiFilters['max_price'] = _currentFilters.maxPrice.toString();
+      }
+      apiFilters.removeWhere((key, value) => value == null || value.isEmpty);
+
+      // Cargar siguiente página
+      final nextPage = _currentPage + 1;
+      final productsResponse = await _productService.getProducts(
+        token: token,
+        filters: apiFilters,
+        page: nextPage,
+      );
+
+      setState(() {
+        _currentPage = nextPage;
+        _hasMorePages = productsResponse.hasNextPage;
+        _allProducts.addAll(productsResponse.products);
+        _isLoadingMore = false;
+      });
+
+      // Actualizar el Future para que el FutureBuilder se refresque
+      setState(() {
+        _initialDataFuture = Future.value({
+          'products': _allProducts,
+          'categories': [], // Ya están cargadas
+          'brands': [], // Ya están cargadas
+        });
+      });
+
+      debugPrint(
+        '✅ Loaded page $nextPage: ${productsResponse.products.length} products',
+      );
+      debugPrint('📄 Total products now: ${_allProducts.length}');
+    } catch (e) {
+      debugPrint('❌ Error loading more products: $e');
+      setState(() {
+        _isLoadingMore = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar más productos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
