@@ -1,9 +1,11 @@
 // lib/screens/admin/admin_product_form_screen.dart
 
-// ignore_for_file: use_build_context_synchronously, curly_braces_in_flow_control_structures, deprecated_member_use
+// ignore_for_file: use_build_context_synchronously, curly_braces_in_flow_control_structures, deprecated_member_use, depend_on_referenced_packages
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smartsales365/models/brand_model.dart';
 import 'package:smartsales365/models/category_model.dart';
 import 'package:smartsales365/models/product_model.dart';
@@ -36,6 +38,10 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
   // Variables para los menús desplegables
   int? _selectedCategoryId;
   int? _selectedBrandId;
+
+  // Variables para imagen
+  File? _selectedImage;
+  final ImagePicker _imagePicker = ImagePicker();
 
   // Estado de carga
   late Future<Map<String, dynamic>> _dropdownDataFuture;
@@ -76,6 +82,87 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Seleccionar imagen desde la galería
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al seleccionar imagen: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Seleccionar imagen desde la cámara
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al tomar foto: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Mostrar diálogo para elegir fuente de imagen
+  void _showImageSourceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar imagen'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Galería'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromGallery();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Cámara'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromCamera();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Envía el formulario
@@ -127,13 +214,33 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
     try {
       // 4. Llama al servicio (Crear o Actualizar)
       if (_isEditing) {
-        await _productService.updateProduct(
-          token,
-          widget.product!.id,
-          productData,
-        );
+        // Si hay imagen seleccionada, usar método con imagen
+        if (_selectedImage != null) {
+          await _productService.updateProductWithImage(
+            token,
+            widget.product!.id,
+            productData,
+            _selectedImage!,
+          );
+        } else {
+          // Sin imagen, usar método normal
+          await _productService.updateProduct(
+            token,
+            widget.product!.id,
+            productData,
+          );
+        }
       } else {
-        await _productService.createProduct(token, productData);
+        // Crear producto nuevo
+        if (_selectedImage != null) {
+          await _productService.createProductWithImage(
+            token,
+            productData,
+            _selectedImage!,
+          );
+        } else {
+          await _productService.createProduct(token, productData);
+        }
       }
 
       // 5. Éxito
@@ -228,6 +335,124 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
               ),
               validator: (value) =>
                   (value == null || value.isEmpty) ? 'Campo requerido' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // --- Imagen del Producto ---
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Imagen del Producto',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Preview de la imagen
+                  if (_selectedImage != null)
+                    Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _selectedImage!,
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedImage = null;
+                            });
+                          },
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          label: const Text(
+                            'Eliminar imagen',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    )
+                  else if (_isEditing && widget.product?.image != null)
+                    Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            widget.product!.image!,
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                height: 200,
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.broken_image,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Imagen actual del producto',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    )
+                  else
+                    Container(
+                      height: 150,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.image, size: 64, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text(
+                              'Sin imagen',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Botón para seleccionar imagen
+                  ElevatedButton.icon(
+                    onPressed: _showImageSourceDialog,
+                    icon: const Icon(Icons.add_photo_alternate),
+                    label: Text(
+                      _selectedImage != null ||
+                              (_isEditing && widget.product?.image != null)
+                          ? 'Cambiar imagen'
+                          : 'Seleccionar imagen',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 

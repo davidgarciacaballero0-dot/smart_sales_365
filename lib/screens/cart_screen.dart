@@ -1,6 +1,6 @@
 // lib/screens/cart_screen.dart
 
-// ignore_for_file: use_build_context_synchronously, avoid_print, deprecated_member_use
+// ignore_for_file: use_build_context_synchronously, avoid_print, deprecated_member_use, depend_on_referenced_packages
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +8,7 @@ import 'package:smartsales365/models/cart_item_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/services/order_service.dart';
-// import 'package:url_launcher/url_launcher.dart'; // TODO: Agregar al pubspec.yaml
+import 'package:url_launcher/url_launcher.dart';
 
 /// Pantalla del carrito de compras
 /// Conectada al backend mediante CartProvider
@@ -111,42 +111,64 @@ class _CartScreenState extends State<CartScreen> {
       print('✅ Orden creada exitosamente');
       print('💳 URL de pago: $checkoutUrl');
 
-      // TODO: Integrar url_launcher para abrir Stripe automáticamente
-      // Por ahora, mostrar la URL al usuario
-
       // Recargar carrito después de crear orden (debería estar vacío)
       await Future.delayed(const Duration(seconds: 1));
       _loadCart();
 
       if (mounted) {
-        // Mostrar diálogo con la URL de pago
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Orden creada'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 64),
-                const SizedBox(height: 16),
-                const Text('Tu orden ha sido creada exitosamente.'),
-                const SizedBox(height: 16),
-                const Text('URL de pago Stripe:'),
-                const SizedBox(height: 8),
-                SelectableText(
-                  checkoutUrl,
-                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+        // Intentar abrir la URL de Stripe automáticamente
+        final Uri stripeUri = Uri.parse(checkoutUrl);
+        final bool canLaunch = await canLaunchUrl(stripeUri);
+
+        if (canLaunch) {
+          // Abrir en navegador externo
+          await launchUrl(stripeUri, mode: LaunchMode.externalApplication);
+
+          // Mostrar confirmación simple
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Abriendo página de pago de Stripe...'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          // Si no se puede abrir, mostrar diálogo con URL para copiar
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Orden creada'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 64),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Tu orden ha sido creada exitosamente.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No se pudo abrir automáticamente. Copia esta URL:',
+                    style: TextStyle(fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    checkoutUrl,
+                    style: const TextStyle(fontSize: 12, color: Colors.blue),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cerrar'),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       print('❌ Error en checkout: $e');

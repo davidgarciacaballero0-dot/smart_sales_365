@@ -1,9 +1,11 @@
 // lib/services/product_service.dart
 
-// ignore_for_file: avoid_print, prefer_is_empty
+// ignore_for_file: avoid_print, prefer_is_empty, depend_on_referenced_packages
 
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/models/products_response_model.dart';
 import 'package:smartsales365/models/review_model.dart';
@@ -271,6 +273,61 @@ class ProductService extends ApiService {
     }
   }
 
+  // --- (ADMIN) CREAR (POST) un nuevo producto CON IMAGEN ---
+  Future<void> createProductWithImage(
+    String token,
+    Map<String, dynamic> data,
+    File imageFile,
+  ) async {
+    try {
+      print('📝 Creando producto con imagen');
+
+      final uri = Uri.parse('$baseUrl/$_productsPath/');
+      final request = http.MultipartRequest('POST', uri);
+
+      // Headers
+      request.headers['Authorization'] = 'Bearer $token';
+
+      // Campos del formulario
+      request.fields['name'] = data['name'].toString();
+      request.fields['description'] = data['description'].toString();
+      request.fields['price'] = data['price'].toString();
+      request.fields['stock'] = data['stock'].toString();
+      request.fields['category_id'] = data['category_id'].toString();
+      request.fields['brand_id'] = data['brand_id'].toString();
+
+      // Archivo de imagen
+      final imageExtension = imageFile.path.split('.').last.toLowerCase();
+      final mimeType = _getMimeType(imageExtension);
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'image', // Nombre del campo en el backend
+        imageFile.path,
+        contentType: MediaType.parse(mimeType),
+      );
+      request.files.add(multipartFile);
+
+      print('📦 Enviando: ${request.fields}');
+      print('🖼️ Imagen: ${imageFile.path} ($mimeType)');
+
+      // Enviar request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('📡 Status create product with image: ${response.statusCode}');
+
+      if (response.statusCode == 201) {
+        print('✅ Producto con imagen creado exitosamente');
+      } else {
+        print('❌ Error response: ${response.body}');
+        throw Exception('Error al crear el producto con imagen');
+      }
+    } catch (e) {
+      print('❌ Error al crear producto con imagen: $e');
+      rethrow;
+    }
+  }
+
   // --- (ADMIN) ACTUALIZAR (PUT) un producto ---
   Future<void> updateProduct(
     String token,
@@ -303,6 +360,62 @@ class ProductService extends ApiService {
     }
   }
 
+  // --- (ADMIN) ACTUALIZAR (PUT) un producto CON IMAGEN ---
+  Future<void> updateProductWithImage(
+    String token,
+    int productId,
+    Map<String, dynamic> data,
+    File imageFile,
+  ) async {
+    try {
+      print('🔄 Actualizando producto ID: $productId con imagen');
+
+      final uri = Uri.parse('$baseUrl/$_productsPath/$productId/');
+      final request = http.MultipartRequest('PUT', uri);
+
+      // Headers
+      request.headers['Authorization'] = 'Bearer $token';
+
+      // Campos del formulario
+      request.fields['name'] = data['name'].toString();
+      request.fields['description'] = data['description'].toString();
+      request.fields['price'] = data['price'].toString();
+      request.fields['stock'] = data['stock'].toString();
+      request.fields['category_id'] = data['category_id'].toString();
+      request.fields['brand_id'] = data['brand_id'].toString();
+
+      // Archivo de imagen
+      final imageExtension = imageFile.path.split('.').last.toLowerCase();
+      final mimeType = _getMimeType(imageExtension);
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'image', // Nombre del campo en el backend
+        imageFile.path,
+        contentType: MediaType.parse(mimeType),
+      );
+      request.files.add(multipartFile);
+
+      print('📦 Enviando: ${request.fields}');
+      print('🖼️ Imagen: ${imageFile.path} ($mimeType)');
+
+      // Enviar request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('📡 Status update product with image: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        print('✅ Producto con imagen actualizado exitosamente');
+      } else {
+        print('❌ Error response: ${response.body}');
+        throw Exception('Error al actualizar el producto con imagen');
+      }
+    } catch (e) {
+      print('❌ Error al actualizar producto con imagen: $e');
+      rethrow;
+    }
+  }
+
   // --- (ADMIN) ELIMINAR (DELETE) un producto ---
   Future<void> deleteProduct(String token, int productId) async {
     try {
@@ -327,6 +440,23 @@ class ProductService extends ApiService {
     } catch (e) {
       print('❌ Error al eliminar producto: $e');
       rethrow;
+    }
+  }
+
+  // --- HELPER: Obtener MIME type basado en extensión de archivo ---
+  String _getMimeType(String extension) {
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg'; // Fallback por defecto
     }
   }
 }

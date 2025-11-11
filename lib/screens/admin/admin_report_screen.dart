@@ -4,6 +4,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/services/report_service.dart';
 import 'package:open_filex/open_filex.dart';
@@ -22,6 +24,83 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
 
   String _selectedFormat = 'pdf'; // Valor por defecto
   bool _isGenerating = false;
+
+  // Variables para speech_to_text
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _speech = stt.SpeechToText();
+  }
+
+  /// Iniciar/detener reconocimiento de voz para el prompt
+  Future<void> _toggleVoiceInput() async {
+    if (_isListening) {
+      // Detener escucha
+      await _speech.stop();
+      setState(() {
+        _isListening = false;
+      });
+    } else {
+      // Solicitar permiso
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permiso de micrófono denegado'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Inicializar speech si es necesario
+      bool available = await _speech.initialize(
+        onError: (error) {
+          setState(() {
+            _isListening = false;
+          });
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            setState(() {
+              _isListening = false;
+            });
+          }
+        },
+      );
+
+      if (!available) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Reconocimiento de voz no disponible'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Iniciar escucha
+      setState(() {
+        _isListening = true;
+      });
+
+      await _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _promptController.text = result.recognizedWords;
+          });
+        },
+        localeId: 'es_ES', // Español
+      );
+    }
+  }
 
   Future<void> _generateReport() async {
     if (!_formKey.currentState!.validate()) return;
@@ -74,6 +153,7 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
   @override
   void dispose() {
     _promptController.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -102,10 +182,20 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
               // --- Campo de Texto (Prompt) ---
               TextFormField(
                 controller: _promptController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Escribe tu consulta...',
                   hintText: 'Ej: "Ventas totales del último mes por categoría"',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _isListening ? Icons.mic : Icons.mic_none,
+                      color: _isListening ? Colors.red : Colors.blue,
+                    ),
+                    tooltip: _isListening
+                        ? 'Escuchando...'
+                        : 'Dictar consulta por voz',
+                    onPressed: _toggleVoiceInput,
+                  ),
                 ),
                 maxLines: 4,
                 validator: (value) =>

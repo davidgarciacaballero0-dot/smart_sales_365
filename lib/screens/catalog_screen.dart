@@ -1,14 +1,17 @@
 // lib/screens/catalog_screen.dart
 
-// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_import
+// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_import, use_build_context_synchronously
 
 // CORRECCIÓN 1: Se eliminó la importación de 'package_wrapper.dart'
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/models/products_response_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
+import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/services/product_service.dart';
 import 'package:smartsales365/widgets/product_card.dart';
 import 'package:smartsales365/widgets/product_filter_drawer.dart';
@@ -47,6 +50,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
   // Timer para debounce de búsqueda
   Timer? _debounceTimer;
 
+  // Variables para speech_to_text
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+  String _voiceText = '';
+
   // Getter para saber si hay filtros activos
   bool get _hasActiveFilters {
     return _currentFilters.brandId != null ||
@@ -58,6 +66,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   void initState() {
     super.initState();
+    // Inicializar speech_to_text
+    _speech = stt.SpeechToText();
+
     // Inicializar con datos vacíos temporalmente
     _initialDataFuture = Future.value({
       'products': <Product>[],
@@ -171,10 +182,144 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
+  /// Iniciar/detener reconocimiento de voz
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      // Detener escucha
+      await _speech.stop();
+      setState(() {
+        _isListening = false;
+      });
+
+      // Si se capturó texto, buscar y añadir producto
+      if (_voiceText.isNotEmpty) {
+        await _searchAndAddProductByVoice(_voiceText);
+      }
+    } else {
+      // Solicitar permiso
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permiso de micrófono denegado'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Inicializar speech si es necesario
+      bool available = await _speech.initialize(
+        onError: (error) {
+          setState(() {
+            _isListening = false;
+          });
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            setState(() {
+              _isListening = false;
+            });
+          }
+        },
+      );
+
+      if (!available) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Reconocimiento de voz no disponible'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Iniciar escucha
+      setState(() {
+        _isListening = true;
+        _voiceText = '';
+      });
+
+      await _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _voiceText = result.recognizedWords;
+          });
+        },
+        localeId: 'es_ES', // Español
+      );
+    }
+  }
+
+  /// Buscar producto por nombre de voz y añadir al carrito
+  Future<void> _searchAndAddProductByVoice(String productName) async {
+    try {
+      final String? token = context.read<AuthProvider>().token;
+
+      // Buscar productos que coincidan con el nombre
+      final productsResponse = await _productService.getProducts(
+        token: token,
+        filters: {'search': productName},
+        page: 1,
+      );
+
+      if (productsResponse.products.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No se encontró producto: "$productName"'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Tomar el primer producto encontrado
+      final product = productsResponse.products.first;
+
+      // Añadir al carrito
+      final cartProvider = context.read<CartProvider>();
+      final success = await cartProvider.addToCart(
+        token: token!,
+        productId: product.id,
+        quantity: 1,
+      );
+
+      if (mounted && success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ "${product.name}" añadido al carrito'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al añadir producto: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _voiceText = '';
+      });
+    }
+  }
+
   @override
   void dispose() {
     _debounceTimer?.cancel();
     _searchController.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -276,6 +421,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return AppBar(
       title: const Text('Catálogo de Productos'),
       actions: [
+        // Botón de reconocimiento de voz
+        IconButton(
+          icon: Icon(
+            _isListening ? Icons.mic : Icons.mic_none,
+            color: _isListening ? Colors.red : null,
+          ),
+          tooltip: _isListening
+              ? 'Escuchando... "${_voiceText}"'
+              : 'Buscar por voz',
+          onPressed: _toggleListening,
+        ),
         IconButton(
           icon: Icon(
             Icons.filter_list,
