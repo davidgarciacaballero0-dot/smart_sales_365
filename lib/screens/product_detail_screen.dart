@@ -1,14 +1,13 @@
 // lib/screens/product_detail_screen.dart
 
-// ignore_for_file: unused_import, deprecated_member_use, no_leading_underscores_for_local_identifiers, use_build_context_synchronously, unused_local_variable
+// ignore_for_file: unused_import, deprecated_member_use, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/models/product_model.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
-import 'package:smartsales365/providers/tab_provider.dart'; // 1. Importa el TabProvider
+import 'package:smartsales365/providers/tab_provider.dart';
 import 'package:smartsales365/services/product_service.dart';
-// ... (otros imports como review_model, auth_provider, rating_bar, intl)
 import 'package:smartsales365/models/review_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
@@ -23,25 +22,33 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  late Future<Product> _productFuture;
+  late Future<Product>
+  _productFuture; // Siempre se inicializa en initState (fallback incluido)
   final ProductService _productService = ProductService();
   Product? _product;
 
   @override
   void initState() {
     super.initState();
-    // ¡USA EL product_service ACTUALIZADO!
-    // Usamos el token para la lógica de "has_reviewed"
-    // Usamos addPostFrameCallback para asegurar que el context esté disponible
+    // Fallback provisional para evitar LateInitializationError si algo falla antes
+    _productFuture = _productService.getProductById(widget.productId);
+
+    // Acceso seguro al provider (puede fallar si el contexto aún no está listo)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final String? token = context.read<AuthProvider>().token;
+      if (!mounted) return;
+      try {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        final token = auth.token;
         setState(() {
           _productFuture = _productService.getProductById(
             widget.productId,
             token: token,
           );
         });
+      } catch (e) {
+        // ignore: avoid_print
+        print('[ProductDetail] No se pudo obtener token en initState: $e');
+        // Se mantiene el fallback sin token
       }
     });
   }
@@ -58,7 +65,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ? _buildBottomBar(context, _product!)
           : null,
       body: FutureBuilder<Product>(
-        // El futuro se inicializa en initState (actualizado)
         future: _productFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -77,9 +83,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             );
           }
           if (snapshot.hasData) {
-            // Asignamos el producto al estado para el bottomNavigationBar
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
+              if (mounted && _product != snapshot.data) {
                 setState(() {
                   _product = snapshot.data!;
                 });
@@ -120,8 +125,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          product.description ??
-                              'No hay descripción disponible.',
+                          product.description,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 fontSize: 16,
@@ -137,7 +141,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 16),
-                        _ProductReviewsSection(productId: product.id),
+                        _ProductReviewsSection(
+                          productId: product.id,
+                          hasReviewed: product.hasReviewed ?? false,
+                        ),
                       ],
                     ),
                   ),
@@ -151,7 +158,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  // --- WIDGET AUXILIAR DEL BOTÓN (ACTUALIZADO) ---
   Widget _buildBottomBar(BuildContext context, Product product) {
     return Container(
       padding: const EdgeInsets.all(
@@ -177,14 +183,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
         ),
         onPressed: () {
-          // 2. LEE AMBOS PROVIDERS
           final cart = context.read<CartProvider>();
           final tab = context.read<TabProvider>();
 
-          // 3. AÑADE AL CARRITO
           cart.addToCart(product);
 
-          // 4. (Opcional) Muestra la notificación
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('¡"${product.name}" añadido al carrito!'),
@@ -193,21 +196,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           );
 
-          // 5. CAMBIA LA PESTAÑA A "CARRITO" (índice 1)
           tab.changeTab(1);
-
-          // 6. CIERRA LA PANTALLA DE DETALLE
           Navigator.of(context).pop();
         },
         child: const Text(
-          'Añadir al Carrito e Ir', // Texto actualizado
+          'Añadir al Carrito e Ir',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
 
-  // --- WIDGETS AUXILIARES (Imagen y Garantía) ---
   Widget _buildProductImage(String? imageUrl) {
     if (imageUrl != null && imageUrl.isNotEmpty) {
       return Image.network(
@@ -241,8 +240,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildWarrantyInfo(Product product) {
-    final brand = product.brand;
-    final warrantyMonths = brand?.warrantyDurationMonths;
+    final warrantyMonths = product.warrantyDurationMonths;
 
     if (warrantyMonths != null && warrantyMonths > 0) {
       return Row(
@@ -264,10 +262,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 }
 
-// --- WIDGET INTERNO DE RESEÑAS ---
 class _ProductReviewsSection extends StatefulWidget {
   final int productId;
-  const _ProductReviewsSection({required this.productId});
+  final bool hasReviewed;
+
+  const _ProductReviewsSection({
+    required this.productId,
+    required this.hasReviewed,
+  });
 
   @override
   State<_ProductReviewsSection> createState() => _ProductReviewsSectionState();
@@ -286,7 +288,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
 
   void _fetchReviews() {
     setState(() {
-      // getReviews no necesita token, es público
       _reviewsFuture = _productService.getReviews(widget.productId);
     });
   }
@@ -303,95 +304,105 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
       return;
     }
 
-    double _rating = 3.0;
-    final _commentController = TextEditingController();
+    double rating = 3.0;
+    final commentController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Escribe tu Reseña'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RatingBar.builder(
-                initialRating: _rating,
-                minRating: 1,
-                direction: Axis.horizontal,
-                allowHalfRating: false,
-                itemCount: 5,
-                itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
-                itemBuilder: (context, _) =>
-                    const Icon(Icons.star, color: Colors.amber),
-                onRatingUpdate: (rating) {
-                  _rating = rating;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _commentController,
-                decoration: const InputDecoration(
-                  labelText: 'Comentario (opcional)',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            ElevatedButton(
-              onPressed: _isPostingReview
-                  ? null
-                  : () async {
-                      setState(() {
-                        _isPostingReview = true;
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Escribe tu Reseña'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RatingBar.builder(
+                    initialRating: rating,
+                    minRating: 1,
+                    direction: Axis.horizontal,
+                    allowHalfRating: false,
+                    itemCount: 5,
+                    itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    itemBuilder: (context, _) =>
+                        const Icon(Icons.star, color: Colors.amber),
+                    onRatingUpdate: (newRating) {
+                      setDialogState(() {
+                        rating = newRating;
                       });
-                      try {
-                        // CORRECCIÓN 1/2:
-                        // Cambiado de 'accessToken' a 'token'
-                        await _productService.postReview(
-                          token: authProvider.token!,
-                          productId: widget.productId,
-                          rating: _rating,
-                          comment: _commentController.text,
-                        );
-
-                        Navigator.of(context).pop();
-                        _fetchReviews();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('¡Reseña publicada!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      } finally {
-                        setState(() {
-                          _isPostingReview = false;
-                        });
-                      }
                     },
-              child: _isPostingReview
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Publicar'),
-            ),
-          ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: commentController,
+                    decoration: const InputDecoration(
+                      labelText: 'Comentario (opcional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancelar'),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+                ElevatedButton(
+                  onPressed: _isPostingReview
+                      ? null
+                      : () async {
+                          setState(() {
+                            _isPostingReview = true;
+                          });
+                          try {
+                            await _productService.postReview(
+                              token: authProvider.token!,
+                              productId: widget.productId,
+                              rating: rating,
+                              comment: commentController.text,
+                            );
+
+                            Navigator.of(dialogContext).pop();
+                            _fetchReviews();
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('¡Reseña publicada!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            Navigator.of(dialogContext).pop();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                _isPostingReview = false;
+                              });
+                            }
+                          }
+                        },
+                  child: _isPostingReview
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Publicar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -399,25 +410,13 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isAuthenticated =
-        context.watch<AuthProvider>().status == AuthStatus.authenticated;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Mostramos el botón "Escribir reseña" si:
-        // 1. El usuario está autenticado
-        // 2. El usuario NO ha escrito ya una reseña (lógica en _productFuture)
         Consumer<AuthProvider>(
           builder: (context, auth, child) {
-            // Usamos el 'product' del estado superior
-            final product = context.read<_ProductDetailScreenState>()._product;
-
-            // Lógica de visualización del botón
             bool canReview =
-                auth.status == AuthStatus.authenticated &&
-                product != null &&
-                !product.hasReviewed;
+                auth.status == AuthStatus.authenticated && !widget.hasReviewed;
 
             if (canReview) {
               return ElevatedButton.icon(
@@ -431,14 +430,11 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                 onPressed: () => _showReviewDialog(context),
               );
             } else {
-              // Si ya revisó o no está logueado, no muestra nada
               return const SizedBox.shrink();
             }
           },
         ),
-
         const SizedBox(height: 16),
-
         FutureBuilder<List<Review>>(
           future: _reviewsFuture,
           builder: (context, snapshot) {
@@ -490,7 +486,6 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                               ),
                             ),
                             Text(
-                              // Usando el 'getter' del modelo
                               review.formattedDate,
                               style: const TextStyle(
                                 color: Colors.grey,
@@ -525,6 +520,3 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
     );
   }
 }
-
-// CORRECCIÓN 2/2:
-// Se eliminó la llave '}' adicional que estaba aquí.

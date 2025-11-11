@@ -60,9 +60,9 @@ class _AdminProductFormScreenState extends State<AdminProductFormScreen> {
     );
 
     // Asigna los valores iniciales para los desplegables si estamos editando
-    _selectedCategoryId = widget.product?.categoryDetail.id;
-    _selectedBrandId = widget.product?.brand?.id;
-
+    _selectedCategoryId =
+        widget.product?.categoryDetail?['id'] as int?; // Línea 63
+    _selectedBrandId = widget.product?.brand?['id'] as int?;
     // Carga los datos para los menús desplegables
     _dropdownDataFuture = _loadDropdownData();
   }
