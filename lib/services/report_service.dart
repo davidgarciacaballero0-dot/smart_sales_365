@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 class ReportService {
   static const String _baseUrl =
-      'httpsS://smartsales-backend-891739940726.us-central1.run.app/api';
+      'https://smartsales-backend-891739940726.us-central1.run.app/api';
 
   /// Genera un reporte dinámico y devuelve la RUTA del archivo guardado.
   Future<String> generateReport({
