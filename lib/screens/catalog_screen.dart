@@ -1,6 +1,6 @@
 // lib/screens/catalog_screen.dart
 
-// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_import, use_build_context_synchronously
+// ignore_for_file: no_leading_underscores_for_local_identifiers, unused_import, use_build_context_synchronously, unnecessary_brace_in_string_interps
 
 // CORRECCIÓN 1: Se eliminó la importación de 'package_wrapper.dart'
 import 'dart:async';
