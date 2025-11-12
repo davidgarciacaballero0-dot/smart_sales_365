@@ -101,6 +101,20 @@ class _CartScreenState extends State<CartScreen> {
     try {
       print('🛍️ Iniciando proceso de checkout...');
 
+      // CORRECCIÓN: Recargar carrito antes de proceder para verificar estado actual
+      print('🔄 Recargando carrito para verificar estado...');
+      await cartProvider.loadCart(authProvider.token!);
+
+      // Validar carrito con método detallado
+      final validationError = cartProvider.validateForCheckout();
+      if (validationError != null) {
+        throw Exception(validationError);
+      }
+
+      print(
+        '✅ Carrito verificado: ${cartProvider.cart!.items.length} items, Total: \$${cartProvider.cart!.totalPrice.toStringAsFixed(2)}',
+      );
+
       // Crear orden y obtener URL de Stripe
       final checkoutUrl = await _orderService.createOrderAndCheckout(
         token: authProvider.token!,
@@ -173,11 +187,58 @@ class _CartScreenState extends State<CartScreen> {
     } catch (e) {
       print('❌ Error en checkout: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al procesar orden: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+        // Extraer mensaje más claro del error
+        String errorMessage = e.toString().replaceAll('Exception: ', '');
+
+        // Mostrar diálogo con error detallado para mejor debugging
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Error en el checkout'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No se pudo completar el proceso de pago:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(errorMessage),
+                const SizedBox(height: 16),
+                const Text(
+                  '💡 Verifica que:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '• Tu carrito tenga productos\n'
+                  '• Los datos de envío sean válidos\n'
+                  '• Tu conexión a internet funcione\n'
+                  '• La configuración de Stripe en el backend sea correcta',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _loadCart(); // Recargar carrito
+                },
+                child: const Text('Reintentar'),
+              ),
+            ],
           ),
         );
       }

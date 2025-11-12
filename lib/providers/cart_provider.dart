@@ -29,9 +29,19 @@ class CartProvider with ChangeNotifier {
   int get itemCount => _cart?.totalQuantity ?? 0; // ✅ Suma todas las cantidades
   double get totalPrice => _cart?.totalPrice ?? 0.0;
 
+  // Flag para evitar múltiples cargas simultáneas
+  bool _isLoadingCart = false;
+
   /// Carga el carrito desde el backend
   /// El backend automáticamente crea el carrito si no existe
   Future<void> loadCart(String token) async {
+    // Evitar múltiples cargas simultáneas
+    if (_isLoadingCart) {
+      print('⏳ Carga de carrito ya en progreso, omitiendo...');
+      return;
+    }
+
+    _isLoadingCart = true;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -48,6 +58,8 @@ class CartProvider with ChangeNotifier {
       _errorMessage = 'Error al cargar el carrito: $e';
       _isLoading = false;
       notifyListeners();
+    } finally {
+      _isLoadingCart = false;
     }
   }
 
@@ -94,25 +106,25 @@ class CartProvider with ChangeNotifier {
       return false;
     }
 
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
     try {
       print('🔄 Actualizando item $itemId a cantidad $quantity');
-      _cart = await _cartService.updateCartItem(
+      final updatedCart = await _cartService.updateCartItem(
         token: token,
         itemId: itemId,
         quantity: quantity,
       );
-      print('✅ Cantidad actualizada. Total: \$${_cart!.totalPrice}');
-      _isLoading = false;
+
+      // CORRECCIÓN: Actualizar el estado inmediatamente con la respuesta del backend
+      _cart = updatedCart;
+      _errorMessage = null;
+      print(
+        '✅ Cantidad actualizada. Items: ${_cart!.items.length}, Total items: ${_cart!.totalQuantity}, Precio total: \$${_cart!.totalPrice}',
+      );
       notifyListeners();
       return true;
     } catch (e) {
       print('❌ Error al actualizar cantidad: $e');
       _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
       notifyListeners();
       return false;
     }
@@ -150,21 +162,22 @@ class CartProvider with ChangeNotifier {
 
   /// Elimina un item del carrito
   Future<bool> removeItem({required String token, required int itemId}) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
     try {
       print('🗑️ Eliminando item $itemId del carrito');
-      _cart = await _cartService.removeFromCart(token: token, itemId: itemId);
+      final updatedCart = await _cartService.removeFromCart(
+        token: token,
+        itemId: itemId,
+      );
+
+      // CORRECCIÓN: Actualizar el estado inmediatamente
+      _cart = updatedCart;
+      _errorMessage = null;
       print('✅ Item eliminado. Items restantes: ${_cart!.itemsCount}');
-      _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
       print('❌ Error al eliminar item: $e');
       _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
       notifyListeners();
       return false;
     }
@@ -172,24 +185,40 @@ class CartProvider with ChangeNotifier {
 
   /// Vacía completamente el carrito
   Future<bool> clearCart(String token) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
     try {
       print('🧹 Vaciando carrito...');
-      _cart = await _cartService.clearCart(token);
+      final emptyCart = await _cartService.clearCart(token);
+
+      // CORRECCIÓN: Actualizar el estado inmediatamente
+      _cart = emptyCart;
+      _errorMessage = null;
       print('✅ Carrito vaciado');
-      _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
       print('❌ Error al vaciar carrito: $e');
       _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
       notifyListeners();
       return false;
     }
+  }
+
+  /// Valida que el carrito esté listo para checkout
+  /// Retorna mensaje de error si no es válido, null si está OK
+  String? validateForCheckout() {
+    if (_cart == null) {
+      return 'El carrito no se ha cargado correctamente';
+    }
+
+    if (_cart!.items.isEmpty) {
+      return 'El carrito está vacío';
+    }
+
+    if (_cart!.totalPrice <= 0) {
+      return 'El total del carrito debe ser mayor a cero';
+    }
+
+    return null; // Carrito válido
   }
 
   /// Limpia el estado local (útil al hacer logout)

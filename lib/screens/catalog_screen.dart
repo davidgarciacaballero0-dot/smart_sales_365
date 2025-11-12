@@ -111,9 +111,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
         apiFilters['max_price'] = _currentFilters.maxPrice.toString();
       }
 
-      debugPrint(
-        '🔍 Filtros enviados al backend: $apiFilters',
-      ); // CORRECCIÓN: Usamos ProductsResponse con paginación
+      // Log omitido intencionalmente para evitar pausas si hay un breakpoint en esta línea
+      // (antes: debugPrint('🔍 Filtros enviados al backend: $apiFilters'))
+      // CORRECCIÓN: Usamos ProductsResponse con paginación
       final productsResponse = await _productService.getProducts(
         token: token,
         filters: apiFilters,
@@ -570,13 +570,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
     try {
       final String? token = context.read<AuthProvider>().token;
 
-      // Construir filtros API
-      final Map<String, dynamic> apiFilters = {'search': _searchQuery};
+      // Construir filtros API (usar las mismas claves que en _loadInitialData)
+      // NOTA: la búsqueda por texto es local, no se envía al backend
+      final Map<String, dynamic> apiFilters = {};
       if (_currentFilters.categoryId != null) {
-        apiFilters['category__id'] = _currentFilters.categoryId.toString();
+        apiFilters['category'] = _currentFilters.categoryId.toString();
       }
       if (_currentFilters.brandId != null) {
-        apiFilters['brand__id'] = _currentFilters.brandId.toString();
+        apiFilters['brand'] = _currentFilters.brandId.toString();
       }
       if (_currentFilters.minPrice != null) {
         apiFilters['min_price'] = _currentFilters.minPrice.toString();
@@ -584,7 +585,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
       if (_currentFilters.maxPrice != null) {
         apiFilters['max_price'] = _currentFilters.maxPrice.toString();
       }
-      apiFilters.removeWhere((key, value) => value == null || value.isEmpty);
+      apiFilters.removeWhere(
+        (key, value) => value == null || (value is String && value.isEmpty),
+      );
 
       // Cargar siguiente página
       final nextPage = _currentPage + 1;

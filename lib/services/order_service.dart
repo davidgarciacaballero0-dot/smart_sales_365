@@ -1,5 +1,7 @@
 // lib/services/order_service.dart
 
+// ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:smartsales365/models/order_model.dart';
@@ -44,6 +46,11 @@ class OrderService extends ApiService {
     }
 
     try {
+      print('📦 Creando orden desde carrito...');
+      print('🔍 URL: $baseUrl/$_ordersPath/create_order_from_cart/');
+      print('📍 Dirección: $shippingAddress');
+      print('📞 Teléfono: $shippingPhone');
+
       final response = await http
           .post(
             Uri.parse('$baseUrl/$_ordersPath/create_order_from_cart/'),
@@ -58,17 +65,54 @@ class OrderService extends ApiService {
           )
           .timeout(const Duration(seconds: 15));
 
+      print('📡 Status Code orden: ${response.statusCode}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+        print('✅ Orden creada exitosamente: Orden ID ${jsonData['id']}');
         return Order.fromJson(jsonData);
       } else if (response.statusCode == 400) {
-        final errorData = jsonDecode(utf8.decode(response.bodyBytes));
-        throw Exception(errorData['error'] ?? 'Error al crear la orden');
+        // Intentar extraer mensaje de error específico del backend
+        try {
+          final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+          print('❌ Error 400: $errorData');
+
+          // Manejar diferentes formatos de error del backend
+          String errorMessage = 'Error al crear la orden';
+          if (errorData is Map) {
+            if (errorData.containsKey('error')) {
+              errorMessage = errorData['error'].toString();
+            } else if (errorData.containsKey('detail')) {
+              errorMessage = errorData['detail'].toString();
+            } else if (errorData.containsKey('message')) {
+              errorMessage = errorData['message'].toString();
+            }
+          }
+          throw Exception(errorMessage);
+        } catch (e) {
+          if (e is Exception) rethrow;
+          print('❌ No se pudo parsear error 400: ${response.body}');
+          throw Exception(
+            'Error al crear la orden. Verifica que el carrito tenga productos.',
+          );
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('Sesión expirada. Por favor, inicia sesión nuevamente');
+      } else if (response.statusCode == 500) {
+        print('❌ Error 500 del servidor: ${response.body}');
+        throw Exception('Error del servidor al crear la orden');
       } else {
-        throw Exception('Error al crear la orden: ${response.statusCode}');
+        print('❌ Error HTTP ${response.statusCode}: ${response.body}');
+        throw Exception(
+          'Error al crear la orden (código ${response.statusCode})',
+        );
       }
     } catch (e) {
-      throw Exception('Error al crear la orden: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      print('❌ Excepción en createOrderFromCart: $e');
+      throw Exception('Error de conexión al crear la orden');
     }
   }
 
@@ -161,6 +205,9 @@ class OrderService extends ApiService {
     required int orderId,
   }) async {
     try {
+      print('💳 Creando sesión de Stripe para orden ID: $orderId');
+      print('🔍 URL: $baseUrl/$_stripePath/create-checkout-session/');
+
       final response = await http
           .post(
             Uri.parse('$baseUrl/$_stripePath/create-checkout-session/'),
@@ -172,27 +219,43 @@ class OrderService extends ApiService {
           )
           .timeout(const Duration(seconds: 20));
 
+      print('📡 Status Code Stripe: ${response.statusCode}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+        print('✅ Respuesta Stripe: $jsonData');
+
         final String? checkoutUrl = jsonData['checkout_url'];
 
         if (checkoutUrl != null && checkoutUrl.isNotEmpty) {
+          print('✅ URL de checkout obtenida: $checkoutUrl');
           return checkoutUrl;
         } else {
           throw Exception('El backend no devolvió una URL de pago válida');
         }
       } else if (response.statusCode == 400) {
         final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+        print('❌ Error 400 del backend: $errorData');
         throw Exception(errorData['error'] ?? 'Error al crear sesión de pago');
       } else if (response.statusCode == 404) {
-        throw Exception('Orden no encontrada');
-      } else {
+        throw Exception('Orden no encontrada. Verifica que la orden existe');
+      } else if (response.statusCode == 500) {
+        print('❌ Error 500 del servidor: ${response.body}');
         throw Exception(
-          'Error al crear sesión de pago: ${response.statusCode}',
+          'Error del servidor (500). Verifica la configuración de Stripe en el backend',
+        );
+      } else {
+        print('❌ Error HTTP ${response.statusCode}: ${response.body}');
+        throw Exception(
+          'Error al crear sesión de pago (código ${response.statusCode})',
         );
       }
     } catch (e) {
-      throw Exception('Error al crear sesión de pago: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      print('❌ Excepción en createStripeCheckoutSession: $e');
+      throw Exception('Error de conexión al crear sesión de pago');
     }
   }
 

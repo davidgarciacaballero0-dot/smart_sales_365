@@ -18,7 +18,7 @@ class OrderHistoryScreen extends StatefulWidget {
 }
 
 class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
-  late Future<List<Order>> _ordersFuture;
+  Future<List<Order>>? _ordersFuture;
   final OrderService _orderService = OrderService();
 
   @override
@@ -61,96 +61,104 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Mi Historial de Pedidos')),
-      body: FutureBuilder<List<Order>>(
-        future: _ordersFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _ordersFuture == null
+          ? const Center(child: CircularProgressIndicator())
+          : FutureBuilder<List<Order>>(
+              future: _ordersFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error al cargar pedidos:\n${snapshot.error}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
-          }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error al cargar pedidos:\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Text(
-                'Aún no has realizado ningún pedido.',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-            );
-          }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Aún no has realizado ningún pedido.',
+                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                    ),
+                  );
+                }
 
-          final orders = snapshot.data!;
+                final orders = snapshot.data!;
 
-          return ListView.builder(
-            itemCount: orders.length,
-            itemBuilder: (context, index) {
-              final order = orders[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                elevation: 2,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  title: Text(
-                    'Pedido #${order.id}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Fecha: ${_formatDate(order.createdAt)}'),
-                      Text('Total: Bs. ${order.totalPrice.toStringAsFixed(2)}'),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(
-                            order.paymentStatus ?? 'pendiente',
-                          ).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          // CORRECCIÓN: Manejar null con operador ??
-                          'Estado: ${(order.paymentStatus ?? 'pendiente').toUpperCase()}',
-                          style: TextStyle(
-                            color: _getStatusColor(
-                              order.paymentStatus ?? 'pendiente',
-                            ),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
+                return ListView.builder(
+                  itemCount: orders.length,
+                  itemBuilder: (context, index) {
+                    final order = orders[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
+                      elevation: 2,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        title: Text(
+                          'Pedido #${order.id}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Fecha: ${_formatDate(order.createdAt)}'),
+                            Text(
+                              'Total: Bs. ${order.totalPrice.toStringAsFixed(2)}',
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(
+                                  order.paymentStatus ?? 'pendiente',
+                                ).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                // CORRECCIÓN: Manejar null con operador ??
+                                'Estado: ${(order.paymentStatus ?? 'pendiente').toUpperCase()}',
+                                style: TextStyle(
+                                  color: _getStatusColor(
+                                    order.paymentStatus ?? 'pendiente',
+                                  ),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
 
-                  // 2. ¡AQUÍ ESTÁ EL CAMBIO!
-                  onTap: () {
-                    // Navega a la pantalla de detalle y pasa el objeto 'order'
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => OrderDetailScreen(order: order),
+                        // 2. ¡AQUÍ ESTÁ EL CAMBIO!
+                        onTap: () {
+                          // Navega a la pantalla de detalle y pasa el objeto 'order'
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  OrderDetailScreen(order: order),
+                            ),
+                          );
+                        },
                       ),
                     );
                   },
-                ),
-              );
-            },
-          );
-        },
-      ),
+                );
+              },
+            ),
     );
   }
 }

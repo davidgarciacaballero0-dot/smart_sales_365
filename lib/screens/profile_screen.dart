@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
+import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/screens/order_history_screen.dart';
 import 'package:smartsales365/screens/register_screen.dart';
 
@@ -235,6 +236,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
 
               if (confirm == true && context.mounted) {
+                // Limpiar carrito antes de logout
+                context.read<CartProvider>().reset();
                 await authProvider.logout();
               }
             },
@@ -416,6 +419,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
 
                 if (confirm == true && context.mounted) {
+                  // Limpiar carrito antes de logout
+                  context.read<CartProvider>().reset();
                   await authProvider.logout();
                 }
               },

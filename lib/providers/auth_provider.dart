@@ -204,6 +204,9 @@ class AuthProvider with ChangeNotifier {
   }
 
   /// Cerrar Sesión
+  ///
+  /// NOTA: CartProvider.reset() debe ser llamado desde la UI
+  /// después de logout() para limpiar el carrito
   Future<void> logout() async {
     print('👋 Cerrando sesión...');
     _status = AuthStatus.unauthenticated;

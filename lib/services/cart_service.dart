@@ -1,9 +1,14 @@
 // lib/services/cart_service.dart
 
+// ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:smartsales365/models/cart_model.dart';
 import 'package:smartsales365/services/api_service.dart';
+
+/// TODO: Integrar AuthenticatedHttpClient para auto-retry en errores 401
+/// Por ahora, el manejo de 401 se hace a nivel de UI (relogin)
 
 /// Servicio para manejar operaciones del carrito
 /// Backend endpoint: GET/POST/PUT/DELETE /api/cart/
@@ -15,6 +20,38 @@ import 'package:smartsales365/services/api_service.dart';
 /// - DELETE: Elimina un item del carrito {item_id}
 class CartService extends ApiService {
   final String _cartPath = 'cart';
+
+  /// Helper privado para retry automático en errores 502/503
+  /// Intenta 3 veces con backoff exponencial: 1s, 2s, 4s
+  Future<T> _retryOnServerError<T>(
+    Future<T> Function() operation, {
+    int maxRetries = 3,
+  }) async {
+    int attempt = 0;
+    Duration delay = const Duration(seconds: 1);
+
+    while (true) {
+      try {
+        return await operation();
+      } catch (e) {
+        attempt++;
+        final isServerError =
+            e.toString().contains('502') ||
+            e.toString().contains('503') ||
+            e.toString().contains('504');
+
+        if (!isServerError || attempt >= maxRetries) {
+          rethrow; // No reintentar si no es error de servidor o se acabaron los intentos
+        }
+
+        print(
+          '⚠️ Error de servidor (intento $attempt/$maxRetries), reintentando en ${delay.inSeconds}s...',
+        );
+        await Future.delayed(delay);
+        delay *= 2; // Backoff exponencial
+      }
+    }
+  }
 
   /// Obtiene el carrito del usuario actual
   /// El backend automáticamente crea el carrito si no existe (get_or_create)
@@ -106,32 +143,36 @@ class CartService extends ApiService {
       throw Exception('La cantidad no puede ser negativa');
     }
 
-    try {
-      final response = await http
-          .put(
-            Uri.parse('$baseUrl/$_cartPath/'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({'item_id': itemId, 'quantity': quantity}),
-          )
-          .timeout(const Duration(seconds: 15));
+    return await _retryOnServerError(() async {
+      try {
+        final response = await http
+            .put(
+              Uri.parse('$baseUrl/$_cartPath/'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode({'item_id': itemId, 'quantity': quantity}),
+            )
+            .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
-        return Cart.fromJson(jsonData);
-      } else if (response.statusCode == 400) {
-        final errorData = jsonDecode(utf8.decode(response.bodyBytes));
-        throw Exception(errorData['error'] ?? 'Error al actualizar el item');
-      } else if (response.statusCode == 404) {
-        throw Exception('Item no encontrado en el carrito');
-      } else {
-        throw Exception('Error al actualizar el item: ${response.statusCode}');
+        if (response.statusCode == 200) {
+          final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+          return Cart.fromJson(jsonData);
+        } else if (response.statusCode == 400) {
+          final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+          throw Exception(errorData['error'] ?? 'Error al actualizar el item');
+        } else if (response.statusCode == 404) {
+          throw Exception('Item no encontrado en el carrito');
+        } else {
+          throw Exception(
+            'Error al actualizar el item: ${response.statusCode}',
+          );
+        }
+      } catch (e) {
+        throw Exception('Error al actualizar el item: $e');
       }
-    } catch (e) {
-      throw Exception('Error al actualizar el item: $e');
-    }
+    });
   }
 
   /// Elimina un item del carrito
@@ -144,31 +185,33 @@ class CartService extends ApiService {
     required String token,
     required int itemId,
   }) async {
-    try {
-      final response = await http
-          .delete(
-            Uri.parse('$baseUrl/$_cartPath/'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({'item_id': itemId}),
-          )
-          .timeout(const Duration(seconds: 15));
+    return await _retryOnServerError(() async {
+      try {
+        final response = await http
+            .delete(
+              Uri.parse('$baseUrl/$_cartPath/'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode({'item_id': itemId}),
+            )
+            .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
-        return Cart.fromJson(jsonData);
-      } else if (response.statusCode == 404) {
-        throw Exception('Item no encontrado en el carrito');
-      } else {
-        throw Exception(
-          'Error al eliminar del carrito: ${response.statusCode}',
-        );
+        if (response.statusCode == 200) {
+          final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+          return Cart.fromJson(jsonData);
+        } else if (response.statusCode == 404) {
+          throw Exception('Item no encontrado en el carrito');
+        } else {
+          throw Exception(
+            'Error al eliminar del carrito: ${response.statusCode}',
+          );
+        }
+      } catch (e) {
+        throw Exception('Error al eliminar del carrito: $e');
       }
-    } catch (e) {
-      throw Exception('Error al eliminar del carrito: $e');
-    }
+    });
   }
 
   /// Vacía completamente el carrito eliminando todos los items
@@ -176,20 +219,22 @@ class CartService extends ApiService {
   /// Requiere: token
   /// Retorna: Cart vacío
   Future<Cart> clearCart(String token) async {
-    try {
-      // Primero obtener el carrito para conocer los items
-      final cart = await getCart(token);
+    return await _retryOnServerError(() async {
+      try {
+        // Primero obtener el carrito para conocer los items
+        final cart = await getCart(token);
 
-      // Eliminar cada item uno por uno
-      for (var item in cart.items) {
-        await removeFromCart(token: token, itemId: item.id);
+        // Eliminar cada item uno por uno
+        for (var item in cart.items) {
+          await removeFromCart(token: token, itemId: item.id);
+        }
+
+        // Retornar carrito actualizado
+        return await getCart(token);
+      } catch (e) {
+        throw Exception('Error al vaciar el carrito: $e');
       }
-
-      // Retornar carrito actualizado
-      return await getCart(token);
-    } catch (e) {
-      throw Exception('Error al vaciar el carrito: $e');
-    }
+    });
   }
 
   /// Helper: Incrementa la cantidad de un item en 1
