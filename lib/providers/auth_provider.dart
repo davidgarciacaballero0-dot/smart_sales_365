@@ -183,7 +183,13 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = {'username': username, 'email': email, 'password': password};
+      // El backend de Django requiere password2 para confirmación
+      final data = {
+        'username': username,
+        'email': email,
+        'password': password,
+        'password2': password, // Confirmación de contraseña
+      };
 
       await _authService.register(data);
 

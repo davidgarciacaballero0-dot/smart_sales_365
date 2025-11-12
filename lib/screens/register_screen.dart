@@ -82,9 +82,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Usuario',
                     prefixIcon: Icon(Icons.person),
+                    hintText: 'Solo letras, números y @.+-_',
                   ),
-                  validator: (value) =>
-                      value!.isEmpty ? 'Ingrese un usuario' : null,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Ingrese un usuario';
+                    }
+                    // Validación según Django: solo permite letras, números y @.+-_
+                    if (!RegExp(r'^[\w.@+-]+$').hasMatch(value)) {
+                      return 'Solo letras, números y @.+-_';
+                    }
+                    if (value.length < 3) {
+                      return 'Mínimo 3 caracteres';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
                 TextFormField(

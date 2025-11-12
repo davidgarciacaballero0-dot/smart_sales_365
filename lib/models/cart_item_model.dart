@@ -20,12 +20,21 @@ class CartItem {
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
     return CartItem(
-      id: json['id'] as int,
+      id: _parseInt(json['id']),
       product: Product.fromJson(json['product'] as Map<String, dynamic>),
-      productId: json['product_id'] as int,
-      quantity: json['quantity'] as int,
+      productId: _parseInt(json['product_id']),
+      quantity: _parseInt(json['quantity']),
       itemPrice: _parseDouble(json['item_price']),
     );
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
   }
 
   static double _parseDouble(dynamic value) {

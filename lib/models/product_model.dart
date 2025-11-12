@@ -43,26 +43,30 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'] as int,
-      name: json['name'] as String? ?? '',
-      description: json['description'] as String? ?? '',
+      id: _parseInt(json['id']),
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
       price: _parseDouble(json['price']),
       stock: _parseInt(json['stock']),
       // Category fields
-      categoryId: json['category'] as int?,
-      categoryName: json['category_name'] as String?,
-      categoryDetail: json['category_detail'] as Map<String, dynamic>?,
+      categoryId: json['category'] is int ? json['category'] as int : null,
+      categoryName: json['category_name']?.toString(),
+      categoryDetail: json['category_detail'] is Map<String, dynamic>
+          ? json['category_detail'] as Map<String, dynamic>
+          : null,
       // Brand fields
-      brandId: json['brand_id'] as int?,
-      brand: json['brand'] as Map<String, dynamic>?,
+      brandId: json['brand_id'] is int ? json['brand_id'] as int : null,
+      brand: json['brand'] is Map<String, dynamic>
+          ? json['brand'] as Map<String, dynamic>
+          : null,
       // Image
-      image: json['image'] as String?,
+      image: json['image']?.toString(),
       // Timestamps
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? DateTime.tryParse(json['created_at'].toString())
           : null,
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
+          ? DateTime.tryParse(json['updated_at'].toString())
           : null,
     );
   }

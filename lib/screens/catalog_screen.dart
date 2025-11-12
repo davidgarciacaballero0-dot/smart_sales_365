@@ -92,13 +92,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
     try {
       final String? token = context.read<AuthProvider>().token;
 
-      // CORRECCIÓN: Convertimos los filtros y la búsqueda a un Map para la API
-      final Map<String, dynamic> apiFilters = {'search': _searchQuery};
+      // CORRECCIÓN: Convertimos los filtros a un Map para la API
+      // Solo acepta: category, brand, min_price, max_price
+      final Map<String, dynamic> apiFilters = {};
+
+      // Filtros con los nombres exactos que espera el backend Django
+      // Referencia: products/views.py línea 116-135
       if (_currentFilters.categoryId != null) {
-        apiFilters['category__id'] = _currentFilters.categoryId.toString();
+        apiFilters['category'] = _currentFilters.categoryId.toString();
       }
       if (_currentFilters.brandId != null) {
-        apiFilters['brand__id'] = _currentFilters.brandId.toString();
+        apiFilters['brand'] = _currentFilters.brandId.toString();
       }
       if (_currentFilters.minPrice != null) {
         apiFilters['min_price'] = _currentFilters.minPrice.toString();
@@ -106,10 +110,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
       if (_currentFilters.maxPrice != null) {
         apiFilters['max_price'] = _currentFilters.maxPrice.toString();
       }
-      // Limpiamos nulos o vacíos
-      apiFilters.removeWhere((key, value) => value == null || value.isEmpty);
 
-      // CORRECCIÓN: Usamos ProductsResponse con paginación
+      debugPrint(
+        '🔍 Filtros enviados al backend: $apiFilters',
+      ); // CORRECCIÓN: Usamos ProductsResponse con paginación
       final productsResponse = await _productService.getProducts(
         token: token,
         filters: apiFilters,
@@ -154,7 +158,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       _currentFilters = filters;
     });
     _reloadData();
-    Navigator.of(context).pop(); // Cierra el drawer
+    // NO cerrar drawer aquí - lo hace el drawer mismo
   }
 
   // CORRECCIÓN: Función de limpieza añadida
@@ -163,23 +167,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
       _currentFilters = ProductFilters();
     });
     _reloadData();
-    Navigator.of(context).pop(); // Cierra el drawer
+    // NO cerrar drawer aquí - lo hace el drawer mismo
   }
 
-  /// Maneja el cambio en la barra de búsqueda (con debounce)
+  /// Maneja el cambio en la barra de búsqueda (solo actualiza el estado)
   void _onSearchChanged(String query) {
-    // Cancelar el timer anterior si existe
-    _debounceTimer?.cancel();
-
-    // Actualizar el query inmediatamente en el estado local
+    // Solo actualizar el texto, NO buscar automáticamente
     setState(() {
       _searchQuery = query;
     });
+  }
 
-    // Crear nuevo timer que se ejecutará después de 500ms sin cambios
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      _reloadData();
-    });
+  /// Ejecuta la búsqueda cuando se presiona Enter
+  void _executeSearch() {
+    _reloadData();
   }
 
   /// Iniciar/detener reconocimiento de voz
@@ -385,6 +386,18 @@ class _CatalogScreenState extends State<CatalogScreen> {
         final List<Category> categories = snapshot.data!['categories'];
         final List<Brand> brands = snapshot.data!['brands'];
 
+        // 🔍 FILTRADO LOCAL: El backend NO soporta búsqueda por nombre
+        // Filtramos los productos localmente si hay texto de búsqueda
+        final List<Product> filteredProducts = _searchQuery.trim().isEmpty
+            ? products
+            : products
+                  .where(
+                    (product) => product.name.toLowerCase().contains(
+                      _searchQuery.toLowerCase(),
+                    ),
+                  )
+                  .toList();
+
         // Construir UI principal con UN SOLO Scaffold
         return Scaffold(
           key: _scaffoldKey,
@@ -400,11 +413,30 @@ class _CatalogScreenState extends State<CatalogScreen> {
             children: [
               _buildSearchField(),
               Expanded(
-                child: products.isEmpty
-                    ? const Center(child: Text('No se encontraron productos.'))
+                child: filteredProducts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.search_off,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchQuery.trim().isEmpty
+                                  ? 'No se encontraron productos.'
+                                  : 'No hay productos que coincidan con "$_searchQuery"',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      )
                     : Column(
                         children: [
-                          Expanded(child: _buildProductGrid(products)),
+                          Expanded(child: _buildProductGrid(filteredProducts)),
                           if (_hasMorePages) _buildLoadMoreButton(),
                         ],
                       ),
@@ -457,12 +489,31 @@ class _CatalogScreenState extends State<CatalogScreen> {
         controller: _searchController,
         decoration: InputDecoration(
           labelText: 'Buscar productos...',
+          hintText: 'Escribe para filtrar productos',
+          helperText: '💡 La búsqueda es local (filtra productos cargados)',
+          helperMaxLines: 2,
           prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                )
+              : null,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.0)),
           filled: true,
           fillColor: Colors.grey[200],
         ),
+        textInputAction: TextInputAction.search,
         onChanged: _onSearchChanged,
+        onSubmitted: (value) {
+          // Buscar cuando presionas Enter (solo actualiza el estado ya que es local)
+          _executeSearch();
+        },
       ),
     );
   }

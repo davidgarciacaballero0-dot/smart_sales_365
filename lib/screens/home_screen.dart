@@ -9,8 +9,7 @@ import 'package:smartsales365/providers/cart_provider.dart';
 import 'package:smartsales365/providers/tab_provider.dart';
 import 'package:smartsales365/screens/cart_screen.dart';
 import 'package:smartsales365/screens/catalog_screen.dart';
-import 'package:smartsales365/screens/login_screen.dart';
-import 'package:smartsales365/screens/order_history_screen.dart'; // Para el perfil
+import 'package:smartsales365/screens/profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -19,7 +18,7 @@ class HomeScreen extends StatelessWidget {
   static final List<Widget> _widgetOptions = <Widget>[
     const CatalogScreen(),
     CartScreen(),
-    const ProfileRouter(), // Pestaña 3 ahora es un router
+    const ProfileScreen(), // Siempre muestra perfil, el ProfileScreen maneja la autenticación
   ];
 
   @override
@@ -83,50 +82,5 @@ class HomeScreen extends StatelessWidget {
         },
       ),
     );
-  }
-}
-
-// --- WIDGET INTERNO PARA MANEJAR LA PESTAÑA DE PERFIL ---
-class ProfileRouter extends StatelessWidget {
-  const ProfileRouter({super.key});
-
-  void _showLoginModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // Permite que el modal sea alto
-      builder: (modalContext) {
-        // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-        // Le pasamos la función 'onLoginSuccess' al LoginScreen.
-        // Usamos 'modalContext' para asegurarnos de que cerramos
-        // el modal correcto.
-        return LoginScreen(
-          onLoginSuccess: () {
-            Navigator.of(modalContext).pop();
-          },
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Escucha el estado de autenticación
-    final authStatus = context.watch<AuthProvider>().status;
-
-    // 1. Si está autenticado, muestra el historial de pedidos
-    if (authStatus == AuthStatus.authenticated) {
-      return const OrderHistoryScreen();
-    }
-
-    // 2. Si no está autenticado o está 'uninitialized',
-    //    mostramos un "placeholder" y disparamos el modal de login
-    //    Usamos addPostFrameCallback para mostrar el modal
-    //    después de que el widget se haya construido.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showLoginModal(context);
-    });
-
-    // Muestra un indicador de carga mientras se abre el modal
-    return const Center(child: CircularProgressIndicator());
   }
 }

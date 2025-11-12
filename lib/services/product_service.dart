@@ -99,25 +99,45 @@ class ProductService extends ApiService {
 
   // --- OBTENER (GET) un solo producto por ID ---
   Future<Product> getProductById(int productId, {String? token}) async {
-    final Map<String, String> headers = {'Content-Type': 'application/json'};
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
+    try {
+      final Map<String, String> headers = {'Content-Type': 'application/json'};
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
 
-    print('🔍 Obteniendo producto ID: $productId');
+      print('🔍 Obteniendo producto ID: $productId');
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/$_productsPath/$productId/'),
-      headers: headers,
-    );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/$_productsPath/$productId/'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
 
-    print('📡 Status producto detalle: ${response.statusCode}');
+      print('📡 Status producto detalle: ${response.statusCode}');
 
-    if (response.statusCode == 200) {
-      return Product.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-    } else {
-      handleResponse(response);
-      throw Exception('Falló al cargar el producto');
+      if (response.statusCode == 200) {
+        try {
+          final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+          return Product.fromJson(jsonData);
+        } catch (e) {
+          print('❌ Error al parsear producto: $e');
+          throw Exception('Error al procesar datos del producto');
+        }
+      } else if (response.statusCode == 404) {
+        throw Exception('Producto no encontrado');
+      } else if (response.statusCode == 401) {
+        throw Exception('Sesión expirada. Por favor, inicia sesión nuevamente');
+      } else {
+        print('❌ Error ${response.statusCode}: ${response.body}');
+        throw Exception(
+          'Error al cargar producto (código ${response.statusCode})',
+        );
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      print('❌ Error de conexión: $e');
+      throw Exception('Error de conexión. Verifica tu internet');
     }
   }
 

@@ -8,8 +8,15 @@ import 'package:smartsales365/providers/tab_provider.dart';
 import 'package:smartsales365/screens/home_screen.dart';
 import 'package:smartsales365/screens/splash_screen.dart';
 import 'package:smartsales365/screens/admin/admin_dashboard_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-void main() {
+void main() async {
+  // Asegura que Flutter esté inicializado antes de inicializar locales
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializa el formato de fechas para español
+  await initializeDateFormatting('es_ES', null);
+
   runApp(
     MultiProvider(
       providers: [

@@ -30,14 +30,35 @@ class Cart {
         .toList();
 
     return Cart(
-      id: json['id'] as int,
-      userId: json['user'] as int,
+      id: _parseInt(json['id']),
+      userId: _parseInt(json['user']),
       items: cartItems,
       totalPrice: _parseDouble(json['total_price']),
       itemsCount: json['items_count'] as int? ?? cartItems.length,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: _parseDateTime(json['created_at']),
+      updatedAt: _parseDateTime(json['updated_at']),
     );
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    return 0;
   }
 
   static double _parseDouble(dynamic value) {
@@ -53,6 +74,12 @@ class Cart {
   // Helper methods
   bool get isEmpty => items.isEmpty;
   bool get isNotEmpty => items.isNotEmpty;
+
+  /// Calcula el número total de productos sumando todas las cantidades
+  int get totalQuantity {
+    if (items.isEmpty) return 0;
+    return items.fold(0, (sum, item) => sum + item.quantity);
+  }
 
   // Find item by product ID
   CartItem? findItemByProductId(int productId) {

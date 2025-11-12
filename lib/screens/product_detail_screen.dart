@@ -10,6 +10,7 @@ import 'package:smartsales365/providers/tab_provider.dart';
 import 'package:smartsales365/services/product_service.dart';
 import 'package:smartsales365/models/review_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
+import 'package:smartsales365/utils/error_handler.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:intl/intl.dart';
 
@@ -70,13 +71,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
+            final errorMsg = ErrorHandler.getErrorMessage(snapshot.error);
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Error al cargar el producto:\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 60,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMsg,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red, fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _productFuture = _productService.getProductById(
+                            widget.productId,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -189,11 +214,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
           // Verificar autenticación
           if (auth.token == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Debes iniciar sesión para añadir al carrito'),
-                backgroundColor: Colors.orange,
-              ),
+            ErrorHandler.showInfo(
+              context,
+              'Debes iniciar sesión para añadir al carrito',
             );
             return;
           }
@@ -206,24 +229,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           );
 
           if (success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('¡"${product.name}" añadido al carrito!'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 1),
-              ),
+            ErrorHandler.showSuccess(
+              context,
+              '¡"${product.name}" añadido al carrito!',
             );
 
             tab.changeTab(1);
             Navigator.of(context).pop();
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  cart.errorMessage ?? 'Error al añadir al carrito',
-                ),
-                backgroundColor: Colors.red,
-              ),
+            ErrorHandler.showError(
+              context,
+              cart.errorMessage ?? 'Error desconocido',
+              prefix: 'Error al añadir al carrito',
             );
           }
         },
@@ -504,31 +521,30 @@ class _ProductReviewsSectionState extends State<_ProductReviewsSection> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          review.user,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              review.user,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                            RatingBarIndicator(
+                              rating: review.rating.toDouble(),
+                              itemBuilder: (context, index) =>
+                                  const Icon(Icons.star, color: Colors.amber),
+                              itemCount: 5,
+                              itemSize: 16.0,
                             ),
                             Text(
                               review.formattedDate,
                               style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
+                                color: Colors.black87,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 4),
-                        RatingBarIndicator(
-                          rating: review.rating.toDouble(),
-                          itemBuilder: (context, index) =>
-                              const Icon(Icons.star, color: Colors.amber),
-                          itemCount: 5,
-                          itemSize: 16.0,
                         ),
                         if (review.comment != null &&
                             review.comment!.isNotEmpty)

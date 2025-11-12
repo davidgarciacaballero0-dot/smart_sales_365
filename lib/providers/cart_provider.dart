@@ -26,7 +26,7 @@ class CartProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get hasItems => _cart != null && _cart!.isNotEmpty;
-  int get itemCount => _cart?.itemsCount ?? 0;
+  int get itemCount => _cart?.totalQuantity ?? 0; // ✅ Suma todas las cantidades
   double get totalPrice => _cart?.totalPrice ?? 0.0;
 
   /// Carga el carrito desde el backend
