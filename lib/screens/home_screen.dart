@@ -14,11 +14,11 @@ import 'package:smartsales365/screens/profile_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  // Lista de widgets para las pestañas
-  static final List<Widget> _widgetOptions = <Widget>[
-    const CatalogScreen(),
-    CartScreen(),
-    const ProfileScreen(), // Siempre muestra perfil, el ProfileScreen maneja la autenticación
+  // Mantener instancias y estado con claves de PageStorage
+  static final List<Widget> _tabs = <Widget>[
+    const CatalogScreen(key: PageStorageKey('tab-catalog')),
+    CartScreen(key: const PageStorageKey('tab-cart')),
+    const ProfileScreen(key: PageStorageKey('tab-profile')),
   ];
 
   @override
@@ -28,7 +28,7 @@ class HomeScreen extends StatelessWidget {
     final cartItemCount = context.watch<CartProvider>().itemCount;
 
     return Scaffold(
-      body: Center(child: _widgetOptions.elementAt(tabProvider.selectedIndex)),
+      body: IndexedStack(index: tabProvider.selectedIndex, children: _tabs),
       bottomNavigationBar: BottomNavigationBar(
         items: <BottomNavigationBarItem>[
           const BottomNavigationBarItem(

@@ -55,7 +55,15 @@ class CartProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('❌ Error al cargar carrito: $e');
-      _errorMessage = 'Error al cargar el carrito: $e';
+
+      // Detectar token expirado y marcar para logout
+      if (e.toString().contains('TOKEN_EXPIRED') ||
+          e.toString().contains('401')) {
+        _errorMessage = 'TOKEN_EXPIRED';
+      } else {
+        _errorMessage = 'Error al cargar el carrito: $e';
+      }
+
       _isLoading = false;
       notifyListeners();
     } finally {
@@ -87,7 +95,15 @@ class CartProvider with ChangeNotifier {
       return true;
     } catch (e) {
       print('❌ Error al añadir producto: $e');
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+
+      // Detectar token expirado
+      if (e.toString().contains('TOKEN_EXPIRED') ||
+          e.toString().contains('401')) {
+        _errorMessage = 'TOKEN_EXPIRED';
+      } else {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+
       _isLoading = false;
       notifyListeners();
       return false;
@@ -124,7 +140,15 @@ class CartProvider with ChangeNotifier {
       return true;
     } catch (e) {
       print('❌ Error al actualizar cantidad: $e');
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+
+      // Detectar token expirado
+      if (e.toString().contains('TOKEN_EXPIRED') ||
+          e.toString().contains('401')) {
+        _errorMessage = 'TOKEN_EXPIRED';
+      } else {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+
       notifyListeners();
       return false;
     }
@@ -177,7 +201,15 @@ class CartProvider with ChangeNotifier {
       return true;
     } catch (e) {
       print('❌ Error al eliminar item: $e');
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+
+      // Detectar token expirado
+      if (e.toString().contains('TOKEN_EXPIRED') ||
+          e.toString().contains('401')) {
+        _errorMessage = 'TOKEN_EXPIRED';
+      } else {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+
       notifyListeners();
       return false;
     }

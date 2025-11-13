@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
+import 'package:smartsales365/utils/error_handler.dart';
 import 'package:smartsales365/screens/order_history_screen.dart';
 import 'package:smartsales365/screens/register_screen.dart';
 
@@ -42,13 +43,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => _isLoading = false);
 
       if (!success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              authProvider.errorMessage ?? 'Error al iniciar sesión',
-            ),
-            backgroundColor: Colors.red,
-          ),
+        ErrorHandler.showError(
+          context,
+          authProvider.errorMessage ?? 'Error al iniciar sesión',
+          prefix: 'Login',
         );
       }
     }
@@ -378,13 +376,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'Ayuda y Soporte',
               subtitle: 'Preguntas frecuentes',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Contacta a soporte: support@smartsales365.com',
-                    ),
-                    backgroundColor: Colors.blue,
-                  ),
+                ErrorHandler.showInfo(
+                  context,
+                  'Contacta a soporte: support@smartsales365.com',
                 );
               },
             ),

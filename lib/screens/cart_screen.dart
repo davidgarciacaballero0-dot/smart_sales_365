@@ -7,8 +7,10 @@ import 'package:provider/provider.dart';
 import 'package:smartsales365/models/cart_item_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
-import 'package:smartsales365/services/order_service.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:smartsales365/providers/payment_provider.dart';
+import 'package:smartsales365/utils/error_handler.dart';
+// import 'package:url_launcher/url_launcher.dart';
+import 'package:smartsales365/screens/checkout_confirmation_screen.dart';
 
 /// Pantalla del carrito de compras
 /// Conectada al backend mediante CartProvider
@@ -27,10 +29,8 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  final OrderService _orderService = OrderService();
   final _shippingAddressController = TextEditingController();
   final _shippingPhoneController = TextEditingController();
-  bool _isProcessingCheckout = false;
 
   @override
   void initState() {
@@ -41,13 +41,51 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  void _loadCart() {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Recargar carrito cada vez que se vuelve a esta pantalla
+    // Esto asegura que siempre veamos el estado actual del carrito
+    _loadCart();
+  }
+
+  void _loadCart() async {
     final authProvider = context.read<AuthProvider>();
     final cartProvider = context.read<CartProvider>();
 
-    if (authProvider.token != null) {
-      cartProvider.loadCart(authProvider.token!);
+    if (authProvider.token == null) {
+      return;
     }
+
+    await cartProvider.loadCart(authProvider.token!);
+
+    // Verificar si hay error de token expirado
+    if (mounted && cartProvider.errorMessage == 'TOKEN_EXPIRED') {
+      _handleTokenExpired();
+    }
+  }
+
+  void _handleTokenExpired() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Tu sesión ha expirado. Por favor, inicia sesión nuevamente',
+        ),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 4),
+      ),
+    );
+
+    // Logout y redirigir a login
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        final authProvider = context.read<AuthProvider>();
+        final cartProvider = context.read<CartProvider>();
+        authProvider.logout();
+        cartProvider.reset();
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    });
   }
 
   @override
@@ -61,6 +99,7 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _processCheckout() async {
     final authProvider = context.read<AuthProvider>();
     final cartProvider = context.read<CartProvider>();
+    final paymentProvider = context.read<PaymentProvider>();
 
     if (authProvider.token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,160 +133,31 @@ class _CartScreenState extends State<CartScreen> {
 
     if (result == null) return; // Usuario canceló
 
-    setState(() {
-      _isProcessingCheckout = true;
-    });
+    if (paymentProvider.isProcessing) return; // Guardar idempotencia
 
-    try {
-      print('🛍️ Iniciando proceso de checkout...');
+    await paymentProvider.processCheckout(
+      token: authProvider.token!,
+      cartProvider: cartProvider,
+      shippingAddress: result['address']!,
+      shippingPhone: result['phone']!,
+    );
 
-      // CORRECCIÓN: Recargar carrito antes de proceder para verificar estado actual
-      print('🔄 Recargando carrito para verificar estado...');
-      await cartProvider.loadCart(authProvider.token!);
+    if (!mounted) return;
 
-      // Validar carrito con método detallado
-      final validationError = cartProvider.validateForCheckout();
-      if (validationError != null) {
-        throw Exception(validationError);
-      }
-
-      print(
-        '✅ Carrito verificado: ${cartProvider.cart!.items.length} items, Total: \$${cartProvider.cart!.totalPrice.toStringAsFixed(2)}',
+    if (paymentProvider.status == PaymentStatus.error) {
+      ErrorHandler.showError(
+        context,
+        paymentProvider.errorMessage ?? 'Error en el checkout',
+        prefix: 'Checkout',
       );
+      return;
+    }
 
-      // Crear orden y obtener URL de Stripe
-      final checkoutUrl = await _orderService.createOrderAndCheckout(
-        token: authProvider.token!,
-        shippingAddress: result['address']!,
-        shippingPhone: result['phone']!,
+    // Ir a pantalla de confirmación y acciones de pago (pantalla completa)
+    if (paymentProvider.lastOrder != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const CheckoutConfirmationScreen()),
       );
-
-      print('✅ Orden creada exitosamente');
-      print('💳 URL de pago: $checkoutUrl');
-
-      // Recargar carrito después de crear orden (debería estar vacío)
-      await Future.delayed(const Duration(seconds: 1));
-      _loadCart();
-
-      if (mounted) {
-        // Intentar abrir la URL de Stripe automáticamente
-        final Uri stripeUri = Uri.parse(checkoutUrl);
-        final bool canLaunch = await canLaunchUrl(stripeUri);
-
-        if (canLaunch) {
-          // Abrir en navegador externo
-          await launchUrl(stripeUri, mode: LaunchMode.externalApplication);
-
-          // Mostrar confirmación simple
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Abriendo página de pago de Stripe...'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        } else {
-          // Si no se puede abrir, mostrar diálogo con URL para copiar
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Orden creada'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Tu orden ha sido creada exitosamente.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No se pudo abrir automáticamente. Copia esta URL:',
-                    style: TextStyle(fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    checkoutUrl,
-                    style: const TextStyle(fontSize: 12, color: Colors.blue),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cerrar'),
-                ),
-              ],
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('❌ Error en checkout: $e');
-      if (mounted) {
-        // Extraer mensaje más claro del error
-        String errorMessage = e.toString().replaceAll('Exception: ', '');
-
-        // Mostrar diálogo con error detallado para mejor debugging
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Error en el checkout'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'No se pudo completar el proceso de pago:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(errorMessage),
-                const SizedBox(height: 16),
-                const Text(
-                  '💡 Verifica que:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  '• Tu carrito tenga productos\n'
-                  '• Los datos de envío sean válidos\n'
-                  '• Tu conexión a internet funcione\n'
-                  '• La configuración de Stripe en el backend sea correcta',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cerrar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _loadCart(); // Recargar carrito
-                },
-                child: const Text('Reintentar'),
-              ),
-            ],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessingCheckout = false;
-        });
-      }
     }
   }
 
@@ -403,8 +313,10 @@ class _CartScreenState extends State<CartScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isProcessingCheckout ? null : _processCheckout,
-                icon: _isProcessingCheckout
+                onPressed: context.watch<PaymentProvider>().isProcessing
+                    ? null
+                    : _processCheckout,
+                icon: context.watch<PaymentProvider>().isProcessing
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -415,7 +327,9 @@ class _CartScreenState extends State<CartScreen> {
                       )
                     : const Icon(Icons.payment),
                 label: Text(
-                  _isProcessingCheckout ? 'Procesando...' : 'Proceder al pago',
+                  context.watch<PaymentProvider>().isProcessing
+                      ? 'Procesando...'
+                      : 'Proceder al pago',
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -436,11 +350,16 @@ class _CartScreenState extends State<CartScreen> {
 
     if (authProvider.token == null) return;
 
-    await cartProvider.incrementItem(
+    final success = await cartProvider.incrementItem(
       token: authProvider.token!,
       itemId: item.id,
       currentQuantity: item.quantity,
     );
+
+    // Verificar si hay error de token expirado
+    if (mounted && !success && cartProvider.errorMessage == 'TOKEN_EXPIRED') {
+      _handleTokenExpired();
+    }
   }
 
   Future<void> _decrementItem(CartItem item) async {
@@ -449,11 +368,16 @@ class _CartScreenState extends State<CartScreen> {
 
     if (authProvider.token == null) return;
 
-    await cartProvider.decrementItem(
+    final success = await cartProvider.decrementItem(
       token: authProvider.token!,
       itemId: item.id,
       currentQuantity: item.quantity,
     );
+
+    // Verificar si hay error de token expirado
+    if (mounted && !success && cartProvider.errorMessage == 'TOKEN_EXPIRED') {
+      _handleTokenExpired();
+    }
   }
 
   Future<void> _removeItem(CartItem item) async {
@@ -482,10 +406,15 @@ class _CartScreenState extends State<CartScreen> {
     );
 
     if (confirm == true) {
-      await cartProvider.removeItem(
+      final success = await cartProvider.removeItem(
         token: authProvider.token!,
         itemId: item.id,
       );
+
+      // Verificar si hay error de token expirado
+      if (mounted && !success && cartProvider.errorMessage == 'TOKEN_EXPIRED') {
+        _handleTokenExpired();
+      }
     }
   }
 

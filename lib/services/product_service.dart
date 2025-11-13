@@ -76,6 +76,9 @@ class ProductService extends ApiService {
         }
 
         return productsResponse;
+      } else if (response.statusCode == 401) {
+        print('❌ Error 401: Token expirado o inválido');
+        throw Exception('TOKEN_EXPIRED');
       } else {
         print('❌ Respuesta de error: ${response.body}');
         throw Exception('Falló al cargar productos: ${response.statusCode}');
@@ -127,7 +130,8 @@ class ProductService extends ApiService {
       } else if (response.statusCode == 404) {
         throw Exception('Producto no encontrado');
       } else if (response.statusCode == 401) {
-        throw Exception('Sesión expirada. Por favor, inicia sesión nuevamente');
+        print('❌ Error 401: Token expirado o inválido');
+        throw Exception('TOKEN_EXPIRED');
       } else {
         print('❌ Error ${response.statusCode}: ${response.body}');
         throw Exception(

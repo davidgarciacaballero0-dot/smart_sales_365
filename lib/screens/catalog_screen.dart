@@ -9,16 +9,13 @@ import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:smartsales365/models/product_model.dart';
-import 'package:smartsales365/models/products_response_model.dart';
 import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
-import 'package:smartsales365/services/product_service.dart';
+import 'package:smartsales365/providers/products_provider.dart';
 import 'package:smartsales365/widgets/product_card.dart';
 import 'package:smartsales365/widgets/product_filter_drawer.dart';
-// CORRECCIÓN: Imports añadidos para el FilterDrawer
 import 'package:smartsales365/models/brand_model.dart';
 import 'package:smartsales365/models/category_model.dart';
-import 'package:smartsales365/services/category_brand_service.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -27,26 +24,11 @@ class CatalogScreen extends StatefulWidget {
   State<CatalogScreen> createState() => _CatalogScreenState();
 }
 
-class _CatalogScreenState extends State<CatalogScreen> {
-  final ProductService _productService = ProductService();
-  // Servicio añadido para cargar datos del drawer
-  final CategoryBrandService _categoryBrandService = CategoryBrandService();
+class _CatalogScreenState extends State<CatalogScreen>
+    with AutomaticKeepAliveClientMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
-
-  late Future<Map<String, dynamic>> _initialDataFuture;
-  bool _isInitialized = false;
-
-  // CORRECCIÓN: Se usa la clase ProductFilters en lugar de un Map
-  ProductFilters _currentFilters = ProductFilters();
   String _searchQuery = '';
-
-  // Paginación
-  int _currentPage = 1;
-  bool _hasMorePages = false;
-  bool _isLoadingMore = false;
-  List<Product> _allProducts = []; // Acumulador de productos
-
   // Timer para debounce de búsqueda
   Timer? _debounceTimer;
 
@@ -56,118 +38,46 @@ class _CatalogScreenState extends State<CatalogScreen> {
   String _voiceText = '';
 
   // Getter para saber si hay filtros activos
-  bool get _hasActiveFilters {
-    return _currentFilters.brandId != null ||
-        _currentFilters.categoryId != null ||
-        _currentFilters.minPrice != null ||
-        _currentFilters.maxPrice != null;
-  }
+  bool get _hasActiveFilters =>
+      context.read<ProductsProvider>().filters.brandId != null ||
+      context.read<ProductsProvider>().filters.categoryId != null ||
+      context.read<ProductsProvider>().filters.minPrice != null ||
+      context.read<ProductsProvider>().filters.maxPrice != null;
 
   @override
   void initState() {
     super.initState();
     // Inicializar speech_to_text
     _speech = stt.SpeechToText();
-
-    // Inicializar con datos vacíos temporalmente
-    _initialDataFuture = Future.value({
-      'products': <Product>[],
-      'categories': <Category>[],
-      'brands': <Brand>[],
-    });
-
-    // Cargar datos reales después de que el contexto esté disponible
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-          _initialDataFuture = _loadInitialData();
-        });
-      }
+    // Vincular token y cargar datos en provider
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      final products = context.read<ProductsProvider>();
+      products.setAuthToken(auth.token);
+      await products.loadInitial();
     });
   }
 
-  /// Carga productos, categorías y marcas
-  Future<Map<String, dynamic>> _loadInitialData() async {
-    try {
-      final String? token = context.read<AuthProvider>().token;
-
-      // CORRECCIÓN: Convertimos los filtros a un Map para la API
-      // Solo acepta: category, brand, min_price, max_price
-      final Map<String, dynamic> apiFilters = {};
-
-      // Filtros con los nombres exactos que espera el backend Django
-      // Referencia: products/views.py línea 116-135
-      if (_currentFilters.categoryId != null) {
-        apiFilters['category'] = _currentFilters.categoryId.toString();
-      }
-      if (_currentFilters.brandId != null) {
-        apiFilters['brand'] = _currentFilters.brandId.toString();
-      }
-      if (_currentFilters.minPrice != null) {
-        apiFilters['min_price'] = _currentFilters.minPrice.toString();
-      }
-      if (_currentFilters.maxPrice != null) {
-        apiFilters['max_price'] = _currentFilters.maxPrice.toString();
-      }
-
-      // Log omitido intencionalmente para evitar pausas si hay un breakpoint en esta línea
-      // (antes: debugPrint('🔍 Filtros enviados al backend: $apiFilters'))
-      // CORRECCIÓN: Usamos ProductsResponse con paginación
-      final productsResponse = await _productService.getProducts(
-        token: token,
-        filters: apiFilters,
-        page: 1, // Primera página
-      );
-
-      // Resetear estado de paginación
-      _currentPage = 1;
-      _hasMorePages = productsResponse.hasNextPage;
-      _allProducts = productsResponse.products;
-
-      // Cargamos los datos para el drawer
-      final categories = await _categoryBrandService.getCategories();
-      final brands = await _categoryBrandService.getBrands();
-
-      debugPrint('✅ Products loaded: ${productsResponse.products.length}');
-      debugPrint('📄 Has more pages: ${productsResponse.hasNextPage}');
-      debugPrint('📊 Total count: ${productsResponse.count}');
-      debugPrint('✅ Categories loaded: ${categories.length}');
-      debugPrint('✅ Brands loaded: ${brands.length}');
-
-      return {
-        'products': productsResponse.products,
-        'categories': categories,
-        'brands': brands,
-      };
-    } catch (e) {
-      rethrow;
-    }
-  }
+  @override
+  bool get wantKeepAlive => true;
 
   /// Vuelve a cargar los datos
-  void _reloadData() {
-    setState(() {
-      _initialDataFuture = _loadInitialData();
-    });
+  Future<void> _reloadData() async {
+    final auth = context.read<AuthProvider>();
+    final products = context.read<ProductsProvider>();
+    products.setAuthToken(auth.token);
+    await products.loadInitial();
   }
 
   // CORRECCIÓN: Firma de la función actualizada
   void _onApplyFilters(ProductFilters filters) {
-    setState(() {
-      _currentFilters = filters;
-    });
-    _reloadData();
-    // NO cerrar drawer aquí - lo hace el drawer mismo
+    context.read<ProductsProvider>().applyFilters(filters);
   }
 
   // CORRECCIÓN: Función de limpieza añadida
   void _clearFilters() {
-    setState(() {
-      _currentFilters = ProductFilters();
-    });
-    _reloadData();
-    // NO cerrar drawer aquí - lo hace el drawer mismo
+    context.read<ProductsProvider>().clearFilters();
   }
 
   /// Maneja el cambio en la barra de búsqueda (solo actualiza el estado)
@@ -176,6 +86,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
     setState(() {
       _searchQuery = query;
     });
+    // Búsqueda local en provider (sin golpear backend)
+    context.read<ProductsProvider>().setSearchQuery(query);
   }
 
   /// Ejecuta la búsqueda cuando se presiona Enter
@@ -260,15 +172,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Future<void> _searchAndAddProductByVoice(String productName) async {
     try {
       final String? token = context.read<AuthProvider>().token;
+      final productsProvider = context.read<ProductsProvider>();
+      // Buscar localmente en los productos cargados
+      final matches = productsProvider.products
+          .where(
+            (p) => p.name.toLowerCase().contains(productName.toLowerCase()),
+          )
+          .toList();
 
-      // Buscar productos que coincidan con el nombre
-      final productsResponse = await _productService.getProducts(
-        token: token,
-        filters: {'search': productName},
-        page: 1,
-      );
-
-      if (productsResponse.products.isEmpty) {
+      if (matches.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -281,7 +193,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       }
 
       // Tomar el primer producto encontrado
-      final product = productsResponse.products.first;
+      final product = matches.first;
 
       // Añadir al carrito
       final cartProvider = context.read<CartProvider>();
@@ -326,86 +238,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _initialDataFuture,
-      builder: (context, snapshot) {
-        // Mostrar loading mientras inicializa o está esperando
-        if (!_isInitialized ||
-            snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            key: _scaffoldKey,
-            appBar: _buildAppBar(),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
+    super.build(context);
+    return Consumer<ProductsProvider>(
+      builder: (context, productsProvider, _) {
+        final products = productsProvider.products;
+        final categories = productsProvider.categories;
+        final brands = productsProvider.brands;
 
-        // Mostrar error si falla
-        if (snapshot.hasError) {
-          return Scaffold(
-            key: _scaffoldKey,
-            appBar: _buildAppBar(),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error al cargar productos:\n${snapshot.error}',
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _reloadData,
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        // Validar que hay datos
-        if (!snapshot.hasData) {
-          return Scaffold(
-            key: _scaffoldKey,
-            appBar: _buildAppBar(),
-            body: const Center(child: Text('No se encontraron datos.')),
-          );
-        }
-
-        final List<Product> products = snapshot.data!['products'];
-        final List<Category> categories = snapshot.data!['categories'];
-        final List<Brand> brands = snapshot.data!['brands'];
-
-        // 🔍 FILTRADO LOCAL: El backend NO soporta búsqueda por nombre
-        // Filtramos los productos localmente si hay texto de búsqueda
-        final List<Product> filteredProducts = _searchQuery.trim().isEmpty
-            ? products
-            : products
-                  .where(
-                    (product) => product.name.toLowerCase().contains(
-                      _searchQuery.toLowerCase(),
-                    ),
-                  )
-                  .toList();
-
-        // Construir UI principal con UN SOLO Scaffold
         return Scaffold(
           key: _scaffoldKey,
           appBar: _buildAppBar(),
           endDrawer: ProductFilterDrawer(
             allCategories: categories,
             allBrands: brands,
-            currentFilters: _currentFilters,
+            currentFilters: productsProvider.filters,
             onApplyFilters: _onApplyFilters,
             clearFilters: _clearFilters,
           ),
@@ -413,34 +259,52 @@ class _CatalogScreenState extends State<CatalogScreen> {
             children: [
               _buildSearchField(),
               Expanded(
-                child: filteredProducts.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                child: RefreshIndicator(
+                  onRefresh: _reloadData,
+                  child: productsProvider.isLoading && products.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : products.isEmpty
+                      ? ListView(
                           children: [
-                            const Icon(
-                              Icons.search_off,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _searchQuery.trim().isEmpty
-                                  ? 'No se encontraron productos.'
-                                  : 'No hay productos que coincidan con "$_searchQuery"',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 16),
+                            const SizedBox(height: 120),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.search_off,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _searchQuery.trim().isEmpty
+                                        ? 'No se encontraron productos.'
+                                        : 'No hay productos que coincidan con "$_searchQuery"',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
+                        )
+                      : Column(
+                          children: [
+                            Expanded(child: _buildProductGrid(products)),
+                            if (productsProvider.hasMore)
+                              _buildLoadMoreButton(),
+                          ],
                         ),
-                      )
-                    : Column(
-                        children: [
-                          Expanded(child: _buildProductGrid(filteredProducts)),
-                          if (_hasMorePages) _buildLoadMoreButton(),
-                        ],
-                      ),
+                ),
               ),
+              if (productsProvider.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    productsProvider.errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
             ],
           ),
         );
@@ -521,6 +385,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   /// Cuadrícula de productos
   Widget _buildProductGrid(List<Product> products) {
     return GridView.builder(
+      key: const PageStorageKey('catalog-grid'),
       padding: const EdgeInsets.all(10.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -541,95 +406,21 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16.0),
-      child: _isLoadingMore
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          : ElevatedButton.icon(
-              onPressed: _loadMoreProducts,
-              icon: const Icon(Icons.add),
-              label: const Text('Cargar más productos'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
+      child: Consumer<ProductsProvider>(
+        builder: (context, provider, _) => ElevatedButton.icon(
+          onPressed: provider.isLoading ? null : _loadMoreProducts,
+          icon: const Icon(Icons.add),
+          label: const Text('Cargar más productos'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+      ),
     );
   }
 
   /// Carga la siguiente página de productos
   Future<void> _loadMoreProducts() async {
-    if (_isLoadingMore || !_hasMorePages) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      final String? token = context.read<AuthProvider>().token;
-
-      // Construir filtros API (usar las mismas claves que en _loadInitialData)
-      // NOTA: la búsqueda por texto es local, no se envía al backend
-      final Map<String, dynamic> apiFilters = {};
-      if (_currentFilters.categoryId != null) {
-        apiFilters['category'] = _currentFilters.categoryId.toString();
-      }
-      if (_currentFilters.brandId != null) {
-        apiFilters['brand'] = _currentFilters.brandId.toString();
-      }
-      if (_currentFilters.minPrice != null) {
-        apiFilters['min_price'] = _currentFilters.minPrice.toString();
-      }
-      if (_currentFilters.maxPrice != null) {
-        apiFilters['max_price'] = _currentFilters.maxPrice.toString();
-      }
-      apiFilters.removeWhere(
-        (key, value) => value == null || (value is String && value.isEmpty),
-      );
-
-      // Cargar siguiente página
-      final nextPage = _currentPage + 1;
-      final productsResponse = await _productService.getProducts(
-        token: token,
-        filters: apiFilters,
-        page: nextPage,
-      );
-
-      setState(() {
-        _currentPage = nextPage;
-        _hasMorePages = productsResponse.hasNextPage;
-        _allProducts.addAll(productsResponse.products);
-        _isLoadingMore = false;
-      });
-
-      // Actualizar el Future para que el FutureBuilder se refresque
-      setState(() {
-        _initialDataFuture = Future.value({
-          'products': _allProducts,
-          'categories': [], // Ya están cargadas
-          'brands': [], // Ya están cargadas
-        });
-      });
-
-      debugPrint(
-        '✅ Loaded page $nextPage: ${productsResponse.products.length} products',
-      );
-      debugPrint('📄 Total products now: ${_allProducts.length}');
-    } catch (e) {
-      debugPrint('❌ Error loading more products: $e');
-      setState(() {
-        _isLoadingMore = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar más productos: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    await context.read<ProductsProvider>().loadMore();
   }
 }

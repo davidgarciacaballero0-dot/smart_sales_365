@@ -30,10 +30,10 @@ class _AdminProductListScreenState extends State<AdminProductListScreen> {
   /// Carga o recarga la lista de productos
   void _fetchProducts() {
     setState(() {
-      // Llama al servicio para obtener productos.
-      // A diferencia del CRUD de marcas/categorías, este no requiere token
-      // porque es el mismo endpoint que usa el cliente.
-      _productsFuture = _productService.getProducts(token: '');
+      // SOLUCIÓN: Obtener token del AuthProvider
+      // El endpoint de productos SÍ requiere autenticación para admin
+      final String? token = context.read<AuthProvider>().token;
+      _productsFuture = _productService.getProducts(token: token ?? '');
     });
   }
 

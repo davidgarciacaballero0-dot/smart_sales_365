@@ -30,27 +30,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Fallback provisional para evitar LateInitializationError si algo falla antes
-    _productFuture = _productService.getProductById(widget.productId);
-
-    // Acceso seguro al provider (puede fallar si el contexto aún no está listo)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      try {
-        final auth = Provider.of<AuthProvider>(context, listen: false);
-        final token = auth.token;
-        setState(() {
-          _productFuture = _productService.getProductById(
-            widget.productId,
-            token: token,
-          );
-        });
-      } catch (e) {
-        // ignore: avoid_print
-        print('[ProductDetail] No se pudo obtener token en initState: $e');
-        // Se mantiene el fallback sin token
-      }
-    });
+    // Obtener token directamente en initState sin doble fetch
+    final String? token = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).token;
+    _productFuture = _productService.getProductById(
+      widget.productId,
+      token: token,
+    );
   }
 
   @override

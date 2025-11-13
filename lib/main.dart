@@ -5,6 +5,9 @@ import 'package:smartsales365/providers/auth_provider.dart';
 import 'package:smartsales365/providers/cart_provider.dart';
 // 1. IMPORTA EL NUEVO TAB PROVIDER
 import 'package:smartsales365/providers/tab_provider.dart';
+import 'package:smartsales365/providers/products_provider.dart';
+import 'package:smartsales365/providers/order_provider.dart';
+import 'package:smartsales365/providers/payment_provider.dart';
 import 'package:smartsales365/screens/home_screen.dart';
 import 'package:smartsales365/screens/splash_screen.dart';
 import 'package:smartsales365/screens/admin/admin_dashboard_screen.dart';
@@ -25,6 +28,10 @@ void main() async {
         ChangeNotifierProvider(create: (context) => CartProvider()),
         // 2. AÑADE EL TAB PROVIDER
         ChangeNotifierProvider(create: (context) => TabProvider()),
+        // 3. Provider para catálogo/productos
+        ChangeNotifierProvider(create: (context) => ProductsProvider()),
+        ChangeNotifierProvider(create: (context) => OrderProvider()),
+        ChangeNotifierProvider(create: (context) => PaymentProvider()),
       ],
       child: const MyApp(),
     ),

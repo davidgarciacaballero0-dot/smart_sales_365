@@ -1,10 +1,12 @@
 // lib/screens/order_detail_screen.dart
 
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:smartsales365/models/order_model.dart';
 import 'package:intl/intl.dart';
-// 1. IMPORTA LA PANTALLA WEBVIEW QUE YA TENÍAMOS
-import 'package:smartsales365/screens/payment_webview_screen.dart';
+import 'package:smartsales365/services/order_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class OrderDetailScreen extends StatelessWidget {
   final Order order;
@@ -99,34 +101,60 @@ class OrderDetailScreen extends StatelessWidget {
 
               const SizedBox(height: 30),
 
-              // 2. ¡NUEVO BOTÓN "VER COMPROBANTE"!
-              // Solo muestra el botón si el pago está completado
-              if (order.paymentStatus == 'completed')
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.receipt_outlined),
-                    label: const Text('Ver Comprobante'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.blueGrey[800],
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      // 3. Construye la URL del recibo
-                      final String receiptUrl =
-                          'https://smartsales-backend-891739940726.us-central1.run.app/api/orders/${order.id}/receipt/';
-                      // 4. Abre la URL en la pantalla WebView
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              PaymentWebViewScreen(url: receiptUrl),
+              // Botones de recibo (HTML y PDF)
+              if (order.status == 'PAGADO') ...[
+                Text('Recibos', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.receipt_long),
+                        label: const Text('Ver Recibo (HTML)'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Colors.blueGrey[700],
+                          foregroundColor: Colors.white,
                         ),
-                      );
-                    },
-                  ),
+                        onPressed: () async {
+                          final orderService = OrderService();
+                          final receiptUrl = orderService.getReceiptHtmlUrl(
+                            order.id,
+                          );
+                          final uri = Uri.parse(receiptUrl);
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.picture_as_pdf),
+                        label: const Text('Descargar PDF'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Colors.red[700],
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () async {
+                          final orderService = OrderService();
+                          final pdfUrl = orderService.getReceiptPdfUrl(
+                            order.id,
+                          );
+                          final uri = Uri.parse(pdfUrl);
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
+              ],
             ],
           ),
         ),

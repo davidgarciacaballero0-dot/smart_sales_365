@@ -73,10 +73,17 @@ class CartService extends ApiService {
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
         return Cart.fromJson(jsonData);
+      } else if (response.statusCode == 401) {
+        print('❌ Error 401: Token expirado o inválido');
+        throw Exception('TOKEN_EXPIRED');
       } else {
         throw Exception('Error al obtener el carrito: ${response.statusCode}');
       }
     } catch (e) {
+      // Si ya es una excepción de token expirado, propagarla sin modificar
+      if (e.toString().contains('TOKEN_EXPIRED')) {
+        rethrow;
+      }
       throw Exception('Error al obtener el carrito: $e');
     }
   }
@@ -84,12 +91,13 @@ class CartService extends ApiService {
   /// Añade un producto al carrito
   ///
   /// Backend espera: {product_id: int, quantity: int}
+  /// Backend retorna: CartItemSerializer (item individual, NO Cart completo)
   /// - Si el producto ya existe, actualiza la cantidad
   /// - Valida que quantity > 0
   /// - Valida que hay stock suficiente
   ///
   /// Requiere: token, productId, quantity
-  /// Retorna: Cart actualizado
+  /// Retorna: Cart actualizado completo (recargado desde backend)
   Future<Cart> addToCart({
     required String token,
     required int productId,
@@ -111,17 +119,25 @@ class CartService extends ApiService {
           )
           .timeout(const Duration(seconds: 15));
 
+      // ✅ Backend retorna 201 con CartItemSerializer (item individual)
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
-        return Cart.fromJson(jsonData);
+        print('✅ Producto añadido al backend, recargando carrito...');
+        // Recargar carrito completo para obtener items_count y total_price correctos
+        return await getCart(token);
       } else if (response.statusCode == 400) {
         // Error de validación (ej: stock insuficiente)
         final errorData = jsonDecode(utf8.decode(response.bodyBytes));
         throw Exception(errorData['error'] ?? 'Error al añadir al carrito');
+      } else if (response.statusCode == 401) {
+        print('❌ Error 401: Token expirado o inválido');
+        throw Exception('TOKEN_EXPIRED');
       } else {
         throw Exception('Error al añadir al carrito: ${response.statusCode}');
       }
     } catch (e) {
+      if (e.toString().contains('TOKEN_EXPIRED')) {
+        rethrow;
+      }
       throw Exception('Error al añadir al carrito: $e');
     }
   }
@@ -133,7 +149,7 @@ class CartService extends ApiService {
   /// - Valida stock disponible
   ///
   /// Requiere: token, itemId, quantity
-  /// Retorna: Cart actualizado
+  /// Retorna: Cart actualizado completo (recargado desde backend)
   Future<Cart> updateCartItem({
     required String token,
     required int itemId,
@@ -157,11 +173,15 @@ class CartService extends ApiService {
             .timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 200) {
-          final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
-          return Cart.fromJson(jsonData);
+          print('✅ Cantidad actualizada en backend, recargando carrito...');
+          // Recargar carrito completo para asegurar sincronización
+          return await getCart(token);
         } else if (response.statusCode == 400) {
           final errorData = jsonDecode(utf8.decode(response.bodyBytes));
           throw Exception(errorData['error'] ?? 'Error al actualizar el item');
+        } else if (response.statusCode == 401) {
+          print('❌ Error 401: Token expirado o inválido');
+          throw Exception('TOKEN_EXPIRED');
         } else if (response.statusCode == 404) {
           throw Exception('Item no encontrado en el carrito');
         } else {
@@ -170,6 +190,9 @@ class CartService extends ApiService {
           );
         }
       } catch (e) {
+        if (e.toString().contains('TOKEN_EXPIRED')) {
+          rethrow;
+        }
         throw Exception('Error al actualizar el item: $e');
       }
     });
@@ -178,9 +201,10 @@ class CartService extends ApiService {
   /// Elimina un item del carrito
   ///
   /// Backend espera: {item_id: int}
+  /// Backend retorna: 204 No Content (sin body)
   ///
   /// Requiere: token, itemId
-  /// Retorna: Cart actualizado (sin el item eliminado)
+  /// Retorna: Cart actualizado (recargado desde el backend)
   Future<Cart> removeFromCart({
     required String token,
     required int itemId,
@@ -198,9 +222,14 @@ class CartService extends ApiService {
             )
             .timeout(const Duration(seconds: 15));
 
-        if (response.statusCode == 200) {
-          final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
-          return Cart.fromJson(jsonData);
+        // ✅ Backend retorna 204 No Content al eliminar exitosamente
+        if (response.statusCode == 204 || response.statusCode == 200) {
+          print('✅ Item eliminado del backend, recargando carrito...');
+          // Recargar carrito completo para obtener el estado actualizado
+          return await getCart(token);
+        } else if (response.statusCode == 401) {
+          print('❌ Error 401: Token expirado o inválido');
+          throw Exception('TOKEN_EXPIRED');
         } else if (response.statusCode == 404) {
           throw Exception('Item no encontrado en el carrito');
         } else {
@@ -209,6 +238,9 @@ class CartService extends ApiService {
           );
         }
       } catch (e) {
+        if (e.toString().contains('TOKEN_EXPIRED')) {
+          rethrow;
+        }
         throw Exception('Error al eliminar del carrito: $e');
       }
     });
@@ -224,12 +256,34 @@ class CartService extends ApiService {
         // Primero obtener el carrito para conocer los items
         final cart = await getCart(token);
 
-        // Eliminar cada item uno por uno
-        for (var item in cart.items) {
-          await removeFromCart(token: token, itemId: item.id);
+        if (cart.items.isEmpty) {
+          print('ℹ️ Carrito ya está vacío');
+          return cart;
         }
 
-        // Retornar carrito actualizado
+        print('🧹 Eliminando ${cart.items.length} items del carrito...');
+        // Eliminar cada item usando el endpoint DELETE
+        for (var item in cart.items) {
+          try {
+            await http
+                .delete(
+                  Uri.parse('$baseUrl/$_cartPath/'),
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer $token',
+                  },
+                  body: jsonEncode({'item_id': item.id}),
+                )
+                .timeout(const Duration(seconds: 15));
+            print('  ✅ Item ${item.id} eliminado');
+          } catch (e) {
+            print('  ⚠️ Error al eliminar item ${item.id}: $e');
+            // Continuar con los demás items
+          }
+        }
+
+        // Recargar carrito una sola vez al final
+        print('🔄 Recargando carrito después de vaciar...');
         return await getCart(token);
       } catch (e) {
         throw Exception('Error al vaciar el carrito: $e');

@@ -17,8 +17,14 @@ class ReportService {
     required String prompt,
     required String format, // 'pdf' o 'excel'
   }) async {
-    final Uri url = Uri.parse('$_baseUrl/reports/generate/');
-    print('Generando reporte con prompt: $prompt');
+    // CORRECCIÓN: Endpoint correcto del backend es /reports/dynamic-report/
+    final Uri url = Uri.parse('$_baseUrl/reports/dynamic-report/');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('📊 GENERANDO REPORTE DINÁMICO');
+    print('🔗 URL: $url');
+    print('📝 Prompt: $prompt');
+    print('📄 Formato: $format');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     final body = jsonEncode({'prompt': prompt, 'format': format});
 
@@ -31,6 +37,8 @@ class ReportService {
         },
         body: body,
       );
+
+      print('📡 Status Code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         // 1. Obtener los bytes del archivo desde la respuesta
@@ -49,13 +57,27 @@ class ReportService {
         await file.writeAsBytes(bytes);
 
         // 5. Devolver la ruta donde se guardó el archivo
+        print('✅ Archivo guardado en: $filePath');
         return filePath;
       } else {
+        print('❌ Error HTTP: ${response.statusCode}');
+        print('📦 Response Body: ${response.body}');
+
+        // Verificar si el endpoint existe
+        if (response.statusCode == 404) {
+          throw Exception(
+            'El endpoint de reportes no fue encontrado.\n'
+            'Verifica que /api/reports/dynamic-report/ esté implementado.\n'
+            'Status: 404 - Endpoint no encontrado',
+          );
+        }
+
         throw Exception(
-          'Error al generar el reporte: ${response.statusCode} - ${response.body}',
+          'Error al generar el reporte: ${response.statusCode}\n${response.body}',
         );
       }
     } catch (e) {
+      print('❌ Excepción capturada: $e');
       throw Exception('Error de conexión: $e');
     }
   }

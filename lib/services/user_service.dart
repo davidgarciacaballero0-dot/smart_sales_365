@@ -20,13 +20,26 @@ class UserService {
     );
 
     if (response.statusCode == 200) {
-      List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+      final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
+
+      // SOLUCIÓN: Backend devuelve objeto paginado: {"count": 10, "results": [...]}
+      // No array directo. Extraer 'results'.
+      List<dynamic> body;
+      if (jsonData is Map<String, dynamic> && jsonData.containsKey('results')) {
+        body = jsonData['results'] as List<dynamic>;
+      } else if (jsonData is List<dynamic>) {
+        // Fallback: Si backend devuelve array directo
+        body = jsonData;
+      } else {
+        throw Exception('Formato de respuesta inesperado del backend');
+      }
+
       List<User> users = body
           .map((dynamic item) => User.fromJson(item))
           .toList();
       return users;
     } else {
-      throw Exception('Falló al cargar los usuarios');
+      throw Exception('Falló al cargar los usuarios: ${response.statusCode}');
     }
   }
 
