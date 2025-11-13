@@ -18,7 +18,7 @@ class ReportService {
     required String format, // 'pdf' o 'excel'
   }) async {
     // CORRECCIÓN: Endpoint correcto del backend es /reports/dynamic-report/
-    final Uri url = Uri.parse('$_baseUrl/reports/dynamic-report/');
+    final Uri url = Uri.parse('$_baseUrl/reports/dynamic_report/');
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     print('📊 GENERANDO REPORTE DINÁMICO');
     print('🔗 URL: $url');

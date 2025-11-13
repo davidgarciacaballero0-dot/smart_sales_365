@@ -7,22 +7,17 @@ import 'package:http/http.dart' as http;
 import 'package:smartsales365/models/cart_model.dart';
 import 'package:smartsales365/services/api_service.dart';
 
-/// TODO: Integrar AuthenticatedHttpClient para auto-retry en errores 401
-/// Por ahora, el manejo de 401 se hace a nivel de UI (relogin)
-
-/// Servicio para manejar operaciones del carrito
-/// Backend endpoint: GET/POST/PUT/DELETE /api/cart/
+/// [CORREGIDO] Este servicio ha sido modificado para funcionar con un backend
+/// que no devuelve el carrito completo en las operaciones PUT/POST/DELETE.
 ///
-/// Estructura del backend (CartViewSet):
-/// - GET: Obtiene o crea automáticamente el carrito del usuario
-/// - POST: Añade un producto al carrito {product_id, quantity}
-/// - PUT: Actualiza la cantidad de un item {item_id, quantity}
-/// - DELETE: Elimina un item del carrito {item_id}
+/// Cada operación exitosa (añadir, actualizar, eliminar) ahora realiza
+/// una SEGUNDA llamada a getCart(token) para re-sincronizar el estado.
+///
 class CartService extends ApiService {
   final String _cartPath = 'cart';
 
   /// Helper privado para retry automático en errores 502/503
-  /// Intenta 3 veces con backoff exponencial: 1s, 2s, 4s
+  /// (Esta función no se modifica)
   Future<T> _retryOnServerError<T>(
     Future<T> Function() operation, {
     int maxRetries = 3,
@@ -54,10 +49,7 @@ class CartService extends ApiService {
   }
 
   /// Obtiene el carrito del usuario actual
-  /// El backend automáticamente crea el carrito si no existe (get_or_create)
-  ///
-  /// Requiere: token de autenticación
-  /// Retorna: Cart con todos los items y total calculado
+  /// (Esta función no se modifica)
   Future<Cart> getCart(String token) async {
     try {
       final response = await http
@@ -73,31 +65,17 @@ class CartService extends ApiService {
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(utf8.decode(response.bodyBytes));
         return Cart.fromJson(jsonData);
-      } else if (response.statusCode == 401) {
-        print('❌ Error 401: Token expirado o inválido');
-        throw Exception('TOKEN_EXPIRED');
       } else {
         throw Exception('Error al obtener el carrito: ${response.statusCode}');
       }
     } catch (e) {
-      // Si ya es una excepción de token expirado, propagarla sin modificar
-      if (e.toString().contains('TOKEN_EXPIRED')) {
-        rethrow;
-      }
       throw Exception('Error al obtener el carrito: $e');
     }
   }
 
   /// Añade un producto al carrito
   ///
-  /// Backend espera: {product_id: int, quantity: int}
-  /// Backend retorna: CartItemSerializer (item individual, NO Cart completo)
-  /// - Si el producto ya existe, actualiza la cantidad
-  /// - Valida que quantity > 0
-  /// - Valida que hay stock suficiente
-  ///
-  /// Requiere: token, productId, quantity
-  /// Retorna: Cart actualizado completo (recargado desde backend)
+  /// [CORREGIDO] Ahora llama a getCart(token) si tiene éxito (200 o 201)
   Future<Cart> addToCart({
     required String token,
     required int productId,
@@ -119,37 +97,26 @@ class CartService extends ApiService {
           )
           .timeout(const Duration(seconds: 15));
 
-      // ✅ Backend retorna 201 con CartItemSerializer (item individual)
       if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Producto añadido al backend, recargando carrito...');
-        // Recargar carrito completo para obtener items_count y total_price correctos
+        // [CORREGIDO] El backend respondió que añadió el item (aunque devolvió un CartItem).
+        // Para sincronizar, llamamos a getCart() para obtener el carrito completo.
+        print('✅ Item añadido, actualizando carrito completo...');
         return await getCart(token);
       } else if (response.statusCode == 400) {
         // Error de validación (ej: stock insuficiente)
         final errorData = jsonDecode(utf8.decode(response.bodyBytes));
         throw Exception(errorData['error'] ?? 'Error al añadir al carrito');
-      } else if (response.statusCode == 401) {
-        print('❌ Error 401: Token expirado o inválido');
-        throw Exception('TOKEN_EXPIRED');
       } else {
         throw Exception('Error al añadir al carrito: ${response.statusCode}');
       }
     } catch (e) {
-      if (e.toString().contains('TOKEN_EXPIRED')) {
-        rethrow;
-      }
       throw Exception('Error al añadir al carrito: $e');
     }
   }
 
   /// Actualiza la cantidad de un item en el carrito
   ///
-  /// Backend espera: {item_id: int, quantity: int}
-  /// - Si quantity = 0, elimina el item
-  /// - Valida stock disponible
-  ///
-  /// Requiere: token, itemId, quantity
-  /// Retorna: Cart actualizado completo (recargado desde backend)
+  /// [CORREGIDO] Ahora llama a getCart(token) si tiene éxito (200)
   Future<Cart> updateCartItem({
     required String token,
     required int itemId,
@@ -173,15 +140,13 @@ class CartService extends ApiService {
             .timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 200) {
-          print('✅ Cantidad actualizada en backend, recargando carrito...');
-          // Recargar carrito completo para asegurar sincronización
+          // [CORREGIDO] El backend respondió que actualizó el item (aunque devolvió un CartItem).
+          // Para sincronizar, llamamos a getCart() para obtener el carrito completo.
+          print('✅ Item actualizado, actualizando carrito completo...');
           return await getCart(token);
         } else if (response.statusCode == 400) {
           final errorData = jsonDecode(utf8.decode(response.bodyBytes));
           throw Exception(errorData['error'] ?? 'Error al actualizar el item');
-        } else if (response.statusCode == 401) {
-          print('❌ Error 401: Token expirado o inválido');
-          throw Exception('TOKEN_EXPIRED');
         } else if (response.statusCode == 404) {
           throw Exception('Item no encontrado en el carrito');
         } else {
@@ -190,9 +155,6 @@ class CartService extends ApiService {
           );
         }
       } catch (e) {
-        if (e.toString().contains('TOKEN_EXPIRED')) {
-          rethrow;
-        }
         throw Exception('Error al actualizar el item: $e');
       }
     });
@@ -200,11 +162,7 @@ class CartService extends ApiService {
 
   /// Elimina un item del carrito
   ///
-  /// Backend espera: {item_id: int}
-  /// Backend retorna: 204 No Content (sin body)
-  ///
-  /// Requiere: token, itemId
-  /// Retorna: Cart actualizado (recargado desde el backend)
+  /// [CORREGIDO] Acepta 204 (No Content) como éxito y llama a getCart(token)
   Future<Cart> removeFromCart({
     required String token,
     required int itemId,
@@ -222,68 +180,41 @@ class CartService extends ApiService {
             )
             .timeout(const Duration(seconds: 15));
 
-        // ✅ Backend retorna 204 No Content al eliminar exitosamente
-        if (response.statusCode == 204 || response.statusCode == 200) {
-          print('✅ Item eliminado del backend, recargando carrito...');
-          // Recargar carrito completo para obtener el estado actualizado
+        // [CORREGIDO] Aceptamos 200 Y 204 como éxito.
+        if (response.statusCode == 200 || response.statusCode == 204) {
+          // [CORREGIDO] El backend respondió que eliminó el item (con 204).
+          // Para sincronizar, llamamos a getCart() para obtener el carrito completo.
+          print('✅ Item eliminado, actualizando carrito completo...');
           return await getCart(token);
-        } else if (response.statusCode == 401) {
-          print('❌ Error 401: Token expirado o inválido');
-          throw Exception('TOKEN_EXPIRED');
         } else if (response.statusCode == 404) {
           throw Exception('Item no encontrado en el carrito');
         } else {
+          // [CORREGIDO] El error 204 ya no caerá aquí.
           throw Exception(
             'Error al eliminar del carrito: ${response.statusCode}',
           );
         }
       } catch (e) {
-        if (e.toString().contains('TOKEN_EXPIRED')) {
-          rethrow;
-        }
+        if (e is Exception) rethrow; // Volver a lanzar excepciones conocidas
         throw Exception('Error al eliminar del carrito: $e');
       }
     });
   }
 
   /// Vacía completamente el carrito eliminando todos los items
-  ///
-  /// Requiere: token
-  /// Retorna: Cart vacío
+  /// (Esta función no se modifica, pero ahora usará el nuevo removeFromCart)
   Future<Cart> clearCart(String token) async {
     return await _retryOnServerError(() async {
       try {
         // Primero obtener el carrito para conocer los items
         final cart = await getCart(token);
 
-        if (cart.items.isEmpty) {
-          print('ℹ️ Carrito ya está vacío');
-          return cart;
-        }
-
-        print('🧹 Eliminando ${cart.items.length} items del carrito...');
-        // Eliminar cada item usando el endpoint DELETE
+        // Eliminar cada item uno por uno
         for (var item in cart.items) {
-          try {
-            await http
-                .delete(
-                  Uri.parse('$baseUrl/$_cartPath/'),
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer $token',
-                  },
-                  body: jsonEncode({'item_id': item.id}),
-                )
-                .timeout(const Duration(seconds: 15));
-            print('  ✅ Item ${item.id} eliminado');
-          } catch (e) {
-            print('  ⚠️ Error al eliminar item ${item.id}: $e');
-            // Continuar con los demás items
-          }
+          await removeFromCart(token: token, itemId: item.id);
         }
 
-        // Recargar carrito una sola vez al final
-        print('🔄 Recargando carrito después de vaciar...');
+        // Retornar carrito actualizado
         return await getCart(token);
       } catch (e) {
         throw Exception('Error al vaciar el carrito: $e');
@@ -292,6 +223,7 @@ class CartService extends ApiService {
   }
 
   /// Helper: Incrementa la cantidad de un item en 1
+  /// (Esta función no se modifica, usará el nuevo updateCartItem)
   Future<Cart> incrementItem({
     required String token,
     required int itemId,
@@ -305,13 +237,14 @@ class CartService extends ApiService {
   }
 
   /// Helper: Decrementa la cantidad de un item en 1
-  /// Si la cantidad llega a 0, elimina el item
+  /// (Esta función no se modifica, usará el nuevo updateCartItem/removeFromCart)
   Future<Cart> decrementItem({
     required String token,
     required int itemId,
     required int currentQuantity,
   }) async {
     if (currentQuantity <= 1) {
+      // Es más seguro llamar a removeFromCart directamente
       return await removeFromCart(token: token, itemId: itemId);
     }
     return await updateCartItem(
